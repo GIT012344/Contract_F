@@ -4,26 +4,23 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import ContractListPage from './pages/ContractListPage';
 import ContractDetailPage from './pages/ContractDetailPage';
-
-function RequireAuth({ children }) {
-  const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" />;
-}
+import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Navigate to="/contracts" />} />
         <Route path="/contracts" element={
-          <RequireAuth>
+          <ProtectedRoute>
             <ContractListPage />
-          </RequireAuth>
+          </ProtectedRoute>
         } />
         <Route path="/contracts/:id" element={
-          <RequireAuth>
+          <ProtectedRoute>
             <ContractDetailPage />
-          </RequireAuth>
+          </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/contracts" />} />
       </Routes>
