@@ -7,6 +7,10 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "pm2": "^6.0.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -19,6 +23,8 @@
   "proxy": "http://localhost:5005",
   "scripts": {
     "start": "set PORT=3003 && react-scripts start",
+    "server": "node server.js",
+    "dev": "concurrently \"npm run server\" \"npm start\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
