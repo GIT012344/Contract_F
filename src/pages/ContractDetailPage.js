@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { authFetch, useAuth } from '../AuthContext';
+import Layout from '../components/Layout';
 import AddContract from '../components/AddContract';
+import { printContract } from '../utils/printUtils';
 import toast, { Toaster } from 'react-hot-toast';
 
 function PeriodModal({ open, onClose, onSave, initial }) {
@@ -265,36 +267,183 @@ export default function ContractDetailPage() {
     }
   };
 
+  const handlePrint = () => {
+    printContract(contract, periods);
+  };
+
   return (
-    <div className="max-w-3xl mx-auto mt-10 px-2 md:px-0">
-      <Toaster position="top-center" />
-      <button className="mb-6 text-blue-600 hover:underline flex items-center gap-1" onClick={() => navigate(-1)}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-        กลับ
-      </button>
-      <h2 className="text-2xl font-bold mb-4 text-blue-700 flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-blue-500"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75A2.25 2.25 0 0014.25 4.5h-7.5A2.25 2.25 0 004.5 6.75v10.5A2.25 2.25 0 006.75 19.5h7.5a2.25 2.25 0 002.25-2.25v-3.75m-6-2.25h11.25m0 0l-3-3m3 3l-3 3" /></svg>
-        รายละเอียดสัญญา
-      </h2>
-      <div className="bg-white p-6 rounded-2xl shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-        <div><span className="font-semibold text-gray-600">เลขที่สัญญา:</span> <span className="text-gray-800">{contract.contract_no}</span></div>
-        <div><span className="font-semibold text-gray-600">ชื่อ:</span> <span className="text-gray-800">{contract.contact_name}</span></div>
-        <div><span className="font-semibold text-gray-600">หน่วยงาน:</span> <span className="text-gray-800">{contract.department}</span></div>
-        <div><span className="font-semibold text-gray-600">สถานะ:</span> <span className="text-gray-800">{contract.status}</span></div>
-        {/* เพิ่ม field อื่น ๆ ตามต้องการ เช่น วันที่เริ่ม, วันที่สิ้นสุด, periodCount, remark1-4, alertEmails */}
-      </div>
-      {/* ปุ่ม admin เท่านั้น */}
-      {role === 'admin' && (
-        <div className="flex flex-wrap gap-3 mb-6">
-          <button className="bg-yellow-400 hover:bg-yellow-500 px-4 py-2 rounded-lg font-semibold shadow transition" onClick={handleEdit}>Edit</button>
-          <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold shadow transition" onClick={handleDelete}>Delete</button>
-          {/* ฟอร์มอัปโหลดไฟล์ */}
-          <form onSubmit={handleUpload} className="flex items-center gap-2" style={{ display: 'inline' }}>
-            <input type="file" ref={fileInputRef} multiple accept="*" className="border rounded px-2 py-1" style={{ maxWidth: 180 }} />
-            <button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold shadow transition" disabled={uploading}>Upload</button>
-          </form>
+    <Layout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Breadcrumb */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => navigate('/contracts')} 
+              className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors group"
+            >
+              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              กลับไปรายการสัญญา
+            </button>
+            <div className="h-6 w-px bg-gray-300"></div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              รายละเอียดสัญญา
+            </h1>
+          </div>
         </div>
-      )}
+        {/* Contract Information Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">ข้อมูลสัญญา</h2>
+            <div className="ml-auto flex gap-2">
+              <button 
+                onClick={handlePrint} 
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                พิมพ์
+              </button>
+              {role === 'admin' && (
+                <>
+                  <button 
+                    onClick={handleEdit} 
+                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" />
+                    </svg>
+                    แก้ไข
+                  </button>
+                  <button 
+                    onClick={handleDelete} 
+                    className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    ลบ
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-1 bg-blue-100 rounded">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">เลขที่สัญญา</p>
+                  <p className="text-lg font-semibold text-gray-900">{contract.contract_no || '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-1 bg-purple-100 rounded">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ชื่อผู้ติดต่อ</p>
+                  <p className="text-lg font-semibold text-gray-900">{contract.contact_name || '-'}</p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-1 bg-orange-100 rounded">
+                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">หน่วยงาน</p>
+                  <p className="text-lg font-semibold text-gray-900">{contract.department || '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-1 bg-green-100 rounded">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">สถานะ</p>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    contract.status === 'active' ? 'bg-green-100 text-green-800' :
+                    contract.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                    contract.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {contract.status || '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* File Upload Section */}
+        {role === 'admin' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">อัปโหลดไฟล์</h2>
+            </div>
+            <form onSubmit={handleUpload} className="flex items-center gap-4">
+              <div className="flex-1">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  multiple 
+                  accept="*" 
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg p-2"
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    กำลังอัปโหลด...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    อัปโหลดไฟล์
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        )}
       {/* แจ้งเตือนอัปโหลด/ลบ/แก้ไข */}
       {uploadError && <div className="text-red-600 mb-2 font-semibold">{uploadError}</div>}
       {uploadSuccess && <div className="text-green-600 mb-2 font-semibold">{uploadSuccess}</div>}
@@ -381,6 +530,7 @@ export default function ContractDetailPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 } 

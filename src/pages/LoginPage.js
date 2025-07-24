@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
       const data = await res.json();
       login(data.token, data.user.role);
       toast.success('เข้าสู่ระบบสำเร็จ');
-      setTimeout(() => navigate('/contracts'), 500);
+      setTimeout(() => navigate('/dashboard'), 500);
     } catch (err) {
       toast.error('Login ไม่สำเร็จ');
     }
@@ -123,48 +123,118 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <Toaster position="top-center" />
       
-      {/* Login Form */}
-      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        <h2 className="text-2xl font-bold mb-6 text-blue-700 flex items-center gap-2 justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-blue-500"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118A7.5 7.5 0 0112 15.75a7.5 7.5 0 017.5 4.368" /></svg>
-          เข้าสู่ระบบ
-        </h2>
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Username</label>
-          <input name="username" onChange={handleChange} placeholder="Username" required className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition" />
+      <div className="w-full max-w-md">
+        {/* Logo and Brand */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Contract Manager</h1>
+          <p className="text-gray-600">ระบบจัดการสัญญา</p>
         </div>
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Password</label>
-          <input name="password" type="password" onChange={handleChange} placeholder="Password" required className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition" />
-        </div>
-        <div className="mb-6">
-          <label className="block font-semibold mb-1">Role</label>
-          <select name="role" onChange={handleChange} value={form.role} className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold shadow transition disabled:opacity-60 mb-4" disabled={loading}>
-          {loading ? <span className="animate-spin inline-block mr-2 w-4 h-4 border-2 border-white border-t-blue-400 rounded-full align-middle"></span> : null}
-          Login
-        </button>
         
-        <div className="text-center">
-          <p className="text-gray-600">
-            ยังไม่มีบัญชี? {' '}
-            <button 
-              type="button"
-              onClick={openRegisterModal}
-              className="text-blue-600 hover:text-blue-700 font-semibold hover:underline transition bg-transparent border-none cursor-pointer"
-            >
-              สมัครสมาชิก
-            </button>
-          </p>
+        {/* Login Form */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 text-center">เข้าสู่ระบบ</h2>
+            <p className="text-gray-600 text-center mt-2">กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ</p>
+          </div>
+          
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                <div className="relative">
+                  <input 
+                    name="username" 
+                    onChange={handleChange} 
+                    placeholder="กรอกชื่อผู้ใช้" 
+                    required 
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
+                    autoComplete="username"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <div className="relative">
+                  <input 
+                    name="password" 
+                    type="password" 
+                    onChange={handleChange} 
+                    placeholder="กรอกรหัสผ่าน" 
+                    required 
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
+                    autoComplete="current-password"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้งาน</label>
+                <select 
+                  name="role" 
+                  onChange={handleChange} 
+                  value={form.role} 
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
+                >
+                  <option value="user">ผู้ใช้ทั่วไป</option>
+                  <option value="admin">ผู้ดูแลระบบ</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="mt-6">
+              <button 
+                type="submit" 
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    กำลังเข้าสู่ระบบ...
+                  </>
+                ) : (
+                  'เข้าสู่ระบบ'
+                )}
+              </button>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                ยังไม่มีบัญชี? {' '}
+                <button 
+                  type="button"
+                  onClick={openRegisterModal}
+                  className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                >
+                  สมัครสมาชิก
+                </button>
+              </p>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
 
       {/* Registration Modal */}
       {showRegisterModal && (
@@ -173,8 +243,8 @@ export default function LoginPage() {
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-2xl font-bold text-green-700 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-green-500">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+                <svg className="w-7 h-7 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
                 </svg>
                 สมัครสมาชิก
               </h2>
@@ -188,62 +258,64 @@ export default function LoginPage() {
             
             {/* Modal Body */}
             <form onSubmit={handleRegisterSubmit} className="p-6">
-              <div className="mb-4">
-                <label className="block font-semibold mb-1 text-gray-700">ชื่อผู้ใช้ (Username)</label>
-                <input 
-                  name="username" 
-                  value={registerForm.username}
-                  onChange={handleRegisterChange} 
-                  placeholder="กรอกชื่อผู้ใช้" 
-                  required 
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
-                  autoComplete="username"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+                  <input 
+                    name="username" 
+                    value={registerForm.username}
+                    onChange={handleRegisterChange} 
+                    placeholder="กรอกชื่อผู้ใช้" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                    autoComplete="username"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">รหัสผ่าน (Password)</label>
+                  <input 
+                    name="password" 
+                    type="password" 
+                    value={registerForm.password}
+                    onChange={handleRegisterChange} 
+                    placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" 
+                    required 
+                    minLength="6"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                    autoComplete="new-password"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">ยืนยันรหัสผ่าน</label>
+                  <input 
+                    name="confirmPassword" 
+                    type="password" 
+                    value={registerForm.confirmPassword}
+                    onChange={handleRegisterChange} 
+                    placeholder="กรอกรหัสผ่านอีกครั้ง" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                    autoComplete="new-password"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้งาน</label>
+                  <select 
+                    name="role" 
+                    value={registerForm.role}
+                    onChange={handleRegisterChange} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                  >
+                    <option value="user">ผู้ใช้ทั่วไป</option>
+                    <option value="admin">ผู้ดูแลระบบ</option>
+                  </select>
+                </div>
               </div>
               
-              <div className="mb-4">
-                <label className="block font-semibold mb-1 text-gray-700">รหัสผ่าน (Password)</label>
-                <input 
-                  name="password" 
-                  type="password" 
-                  value={registerForm.password}
-                  onChange={handleRegisterChange} 
-                  placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" 
-                  required 
-                  minLength="6"
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
-                  autoComplete="new-password"
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block font-semibold mb-1 text-gray-700">ยืนยันรหัสผ่าน</label>
-                <input 
-                  name="confirmPassword" 
-                  type="password" 
-                  value={registerForm.confirmPassword}
-                  onChange={handleRegisterChange} 
-                  placeholder="กรอกรหัสผ่านอีกครั้ง" 
-                  required 
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
-                  autoComplete="new-password"
-                />
-              </div>
-              
-              <div className="mb-6">
-                <label className="block font-semibold mb-1 text-gray-700">สิทธิ์การใช้งาน</label>
-                <select 
-                  name="role" 
-                  value={registerForm.role}
-                  onChange={handleRegisterChange} 
-                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
-                >
-                  <option value="user">ผู้ใช้ทั่วไป</option>
-                  <option value="admin">ผู้ดูแลระบบ</option>
-                </select>
-              </div>
-              
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-6">
                 <button 
                   type="submit" 
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold shadow transition disabled:opacity-60" 
@@ -285,4 +357,4 @@ export default function LoginPage() {
       )}
     </div>
   );
-} 
+}
