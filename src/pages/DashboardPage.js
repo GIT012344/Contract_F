@@ -35,23 +35,29 @@ export default function DashboardPage() {
         const crtdContracts = contracts.filter(c => c.status === 'CRTD').length;
         const expiredContracts = contracts.filter(c => c.status === 'EXPIRED').length;
         
-        // Fetch periods for upcoming deadlines
-        const periodsRes = await authFetch('/api/periods', {}, token);
+        // Fetch periods from each contract individually
+        const periodPromises = contracts.map(contract =>
+          authFetch(`/api/contracts/${contract.id}/periods`, {}, token)
+            .then(res => (res.ok ? res.json() : []))
+            .catch(() => [])
+        );
+        const periodsArrays = await Promise.all(periodPromises);
+        const allPeriods = periodsArrays.flat();
+        
         let pendingPeriods = 0;
         let upcomingDeadlines = [];
         
-        if (periodsRes.ok) {
-          const periods = await periodsRes.json();
-          pendingPeriods = periods.filter(p => p.status === 'รอส่ง').length;
+        if (allPeriods.length > 0) {
+          pendingPeriods = allPeriods.filter(p => p.status === 'รอส่งมอบ').length;
           
           // Get upcoming deadlines (next 7 days)
           const today = new Date();
           const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
           
-          upcomingDeadlines = periods
+          upcomingDeadlines = allPeriods
             .filter(p => {
               const dueDate = new Date(p.due_date);
-              return dueDate >= today && dueDate <= nextWeek && p.status === 'รอส่ง';
+              return dueDate >= today && dueDate <= nextWeek && p.status === 'รอส่งมอบ';
             })
             .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
             .slice(0, 5);

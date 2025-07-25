@@ -22,15 +22,25 @@ export default function NotificationCenter() {
     try {
       setLoading(true);
       
-      // Fetch upcoming deadlines
-      const periodsRes = await authFetch('/api/periods', {}, token);
-      if (periodsRes.ok) {
-        const periods = await periodsRes.json();
+      // Fetch contracts first, then periods from each contract
+      const contractsRes = await authFetch('/api/contracts', {}, token);
+      if (contractsRes.ok) {
+        const contracts = await contractsRes.json();
+        
+        // Fetch periods from each contract individually
+        const periodPromises = contracts.map(contract =>
+          authFetch(`/api/contracts/${contract.id}/periods`, {}, token)
+            .then(res => (res.ok ? res.json() : []))
+            .catch(() => [])
+        );
+        const periodsArrays = await Promise.all(periodPromises);
+        const periods = periodsArrays.flat();
+        
         const now = new Date();
         
         const upcomingDeadlines = periods
           .filter(period => {
-            if (period.status !== 'รอส่ง') return false;
+            if (period.status !== 'รอส่งมอบ') return false;
             
             const dueDate = new Date(period.due_date);
             const alertDate = new Date(dueDate);
