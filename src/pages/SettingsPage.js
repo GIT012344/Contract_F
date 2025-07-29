@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { useAuth, authFetch } from '../AuthContext';
 import toast from 'react-hot-toast';
+import { getAuthMethodBadge, getAuthMethodDisplay } from '../utils/jwtUtils';
 
 export default function SettingsPage() {
-  const { token, role } = useAuth();
+  const { token, user, role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   
@@ -222,7 +223,7 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium text-gray-700">ชื่อผู้ใช้</label>
                       <input
                         type="text"
-                        value={profileData.username}
+                        value={profileData.username || user?.username || ''}
                         disabled
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
                       />
@@ -239,43 +240,74 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
+                  
+                  {/* Authentication Method Info */}
+                  {user?.authMethod && (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">วิธีการเข้าสู่ระบบ</h4>
+                      <div className="flex items-center space-x-3">
+                        {(() => {
+                          const badge = getAuthMethodBadge(user.authMethod);
+                          return (
+                            <>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${badge.className}`}>
+                                <span className="mr-2">{badge.icon}</span>
+                                {badge.text}
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                {getAuthMethodDisplay(user.authMethod)}
+                              </span>
+                            </>
+                          );
+                        })()} 
+                      </div>
+                      {user.authMethod === 'ldap' && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          บัญชีนี้เชื่อมต่อกับระบบ LDAP - การเปลี่ยนรหัสผ่านต้องทำผ่านระบบ LDAP
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">เปลี่ยนรหัสผ่าน</h3>
-                  
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">รหัสผ่านปัจจุบัน</label>
-                      <input
-                        type="password"
-                        value={profileData.currentPassword}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
+                {/* Password Change Section - Only for Local Users */}
+                {user?.authMethod !== 'ldap' && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">เปลี่ยนรหัสผ่าน</h3>
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">รหัสผ่านใหม่</label>
-                      <input
-                        type="password"
-                        value={profileData.newPassword}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, newPassword: e.target.value }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">ยืนยันรหัสผ่านใหม่</label>
-                      <input
-                        type="password"
-                        value={profileData.confirmPassword}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      />
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">รหัสผ่านปัจจุบัน</label>
+                        <input
+                          type="password"
+                          value={profileData.currentPassword}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">รหัสผ่านใหม่</label>
+                        <input
+                          type="password"
+                          value={profileData.newPassword}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, newPassword: e.target.value }))}
+                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">ยืนยันรหัสผ่านใหม่</label>
+                        <input
+                          type="password"
+                          value={profileData.confirmPassword}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex justify-end">
                   <button

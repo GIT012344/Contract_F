@@ -9,7 +9,13 @@ export default function DashboardPage() {
     totalContracts: 0,
     activeContracts: 0,
     completedContracts: 0,
+    cancelledContracts: 0,
+    pendingContracts: 0,
+    totalPeriods: 0,
     pendingPeriods: 0,
+    inProgressPeriods: 0,
+    completedPeriods: 0,
+    overduePeriods: 0,
     upcomingDeadlines: []
   });
   const [loading, setLoading] = useState(true);
@@ -29,46 +35,172 @@ export default function DashboardPage() {
       if (contractsRes.ok) {
         const contracts = await contractsRes.json();
         
-        // Calculate stats
+        // Calculate contract stats
         const totalContracts = contracts.length;
         const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
-        const crtdContracts = contracts.filter(c => c.status === 'CRTD').length;
-        const expiredContracts = contracts.filter(c => c.status === 'EXPIRED').length;
+        const completedContracts = contracts.filter(c => c.status === 'COMPLETED').length;
+        const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED').length;
+        const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length;
         
         // Fetch periods from each contract individually
-        const periodPromises = contracts.map(contract =>
-          authFetch(`/api/contracts/${contract.id}/periods`, {}, token)
-            .then(res => (res.ok ? res.json() : []))
-            .catch(() => [])
-        );
+        console.log('📊 Dashboard: Fetching periods for', contracts.length, 'contracts');
+        const periodPromises = contracts.map(async (contract) => {
+          try {
+            console.log(`📊 Fetching periods for contract ${contract.id}:`, contract.title);
+            const res = await authFetch(`/api/contracts/${contract.id}/periods`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }, token);
+            if (res.ok) {
+              const periods = await res.json();
+              console.log(`📊 Contract ${contract.id} has ${periods.length} periods:`, periods.map(p => ({ id: p.id, status: p.status, due_date: p.due_date })));
+              return periods;
+            } else {
+              console.log(`📊 Failed to fetch periods for contract ${contract.id}:`, res.status, res.statusText);
+              return [];
+            }
+          } catch (error) {
+            console.error(`📊 Error fetching periods for contract ${contract.id}:`, error);
+            return [];
+          }
+        });
         const periodsArrays = await Promise.all(periodPromises);
-        const allPeriods = periodsArrays.flat();
+        let allPeriods = periodsArrays.flat();
         
-        let pendingPeriods = 0;
-        let upcomingDeadlines = [];
+        console.log('📊 Total periods found:', allPeriods.length);
         
-        if (allPeriods.length > 0) {
-          pendingPeriods = allPeriods.filter(p => p.status === 'รอส่งมอบ').length;
-          
-          // Get upcoming deadlines (next 7 days)
-          const today = new Date();
-          const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-          
-          upcomingDeadlines = allPeriods
-            .filter(p => {
-              const dueDate = new Date(p.due_date);
-              return dueDate >= today && dueDate <= nextWeek && p.status === 'รอส่งมอบ';
-            })
-            .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-            .slice(0, 5);
+        // Fallback: Try to fetch all periods at once if individual fetching failed
+        if (allPeriods.length === 0 && contracts.length > 0) {
+          console.log('📊 Trying fallback: fetching all periods from /api/periods');
+          try {
+            const fallbackRes = await authFetch('/api/periods', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }, token);
+            if (fallbackRes.ok) {
+              const fallbackPeriods = await fallbackRes.json();
+              console.log('📊 Fallback found', fallbackPeriods.length, 'periods');
+              allPeriods = fallbackPeriods;
+            } else {
+              console.log('📊 Fallback API returned:', fallbackRes.status, fallbackRes.statusText);
+            }
+          } catch (fallbackError) {
+            console.log('📊 Fallback also failed:', fallbackError);
+          }
         }
+        
+        // Debug: Log contracts structure
+        console.log('🔍 Debug contracts structure:', contracts.slice(0, 2));
+        console.log('🔍 Debug contracts keys and values:', contracts.slice(0, 1).map(c => ({
+          id: c.id,
+          title: c.title,
+          name: c.name,
+          contract_no: c.contract_no,
+          contact_name: c.contact_name,
+          keys: Object.keys(c),
+          fullObject: c
+        })));
+        
+        // Debug: Log periods structure
+        console.log('🔍 Debug periods structure:', allPeriods.slice(0, 2).map(p => ({
+          id: p.id,
+          contract_id: p.contract_id,
+          period_no: p.period_no,
+          keys: Object.keys(p)
+        })));
+        
+        // Create contract lookup map for easy access
+        const contractsMap = contracts.reduce((map, contract) => {
+          map[contract.id] = contract;
+          return map;
+        }, {});
+        
+        console.log('🔍 Debug contractsMap keys:', Object.keys(contractsMap));
+        
+        // Helper function to get contract title from various possible field names
+        const getContractTitle = (contract) => {
+          if (!contract) return 'ไม่ระบุสัญญา';
+          
+          // Try different possible field names
+          return contract.title || 
+                 contract.name || 
+                 contract.contract_name || 
+                 contract.contact_name || 
+                 contract.project_name ||
+                 `สัญญา #${contract.id}` || 
+                 'ไม่ระบุสัญญา';
+        };
+        
+        // Enhance periods with contract information
+        const enhancedPeriods = allPeriods.map(period => {
+          const matchedContract = contractsMap[period.contract_id];
+          const contractTitle = getContractTitle(matchedContract);
+          
+          console.log(`🔍 Period ${period.id} (contract_id: ${period.contract_id}) -> Contract found:`, !!matchedContract, 'Title:', contractTitle);
+          
+          return {
+            ...period,
+            contract_title: contractTitle,
+            contract_no: matchedContract?.contract_no || matchedContract?.number || 'N/A',
+            contract_department: matchedContract?.department || matchedContract?.dept || 'N/A'
+          };
+        });
+        
+        // Log final periods count for debugging
+        console.log('📊 Final periods count:', enhancedPeriods.length);
+        if (enhancedPeriods.length > 0) {
+          console.log('📊 Sample periods with contract info:', enhancedPeriods.slice(0, 3).map(p => ({ 
+            id: p.id, 
+            status: p.status, 
+            due_date: p.due_date, 
+            contract_id: p.contract_id,
+            contract_title: p.contract_title,
+            amount: p.amount,
+            description: p.description 
+          })));
+        }
+        
+        // Calculate period stats using enhanced periods
+        const totalPeriods = enhancedPeriods.length;
+        const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
+        const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
+        const completedPeriods = enhancedPeriods.filter(p => p.status === 'เสร็จสิ้น').length;
+        
+        // Calculate overdue periods
+        const today = new Date();
+        const overduePeriods = enhancedPeriods.filter(p => {
+          const dueDate = new Date(p.due_date);
+          return dueDate < today && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
+        }).length;
+        
+        // Calculate upcoming deadlines (next 7 days) with contract names
+        const upcomingDeadlines = enhancedPeriods.filter(p => {
+          const dueDate = new Date(p.due_date);
+          const diffTime = dueDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= 7 && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
+        }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+          .slice(0, 5)
+          .map(p => ({
+            ...p,
+            contract: contracts.find(c => c.id === p.contract_id)
+          }));
         
         setStats({
           totalContracts,
           activeContracts,
-          crtdContracts,
-          expiredContracts,
+          completedContracts,
+          cancelledContracts,
+          pendingContracts,
+          totalPeriods,
           pendingPeriods,
+          inProgressPeriods,
+          completedPeriods,
+          overduePeriods,
           upcomingDeadlines
         });
       }
@@ -132,60 +264,147 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">สัญญาทั้งหมด</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.totalContracts}</p>
+        {/* Contract Stats */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">สถานะสัญญา</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ทั้งหมด</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalContracts}</p>
+                </div>
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ใช้งานอยู่</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.activeContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.activeContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">รอดำเนินการ</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.pendingContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.pendingContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">เสร็จสิ้น</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.completedContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.completedContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ยกเลิก</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.cancelledContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.cancelledContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">สัญญาที่ใช้งานอยู่</p>
-                <p className="text-3xl font-bold text-green-600">{stats.activeContracts}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+        {/* Period Stats */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">สถานะงวดงาน</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">รอดำเนินการ</p>
+                  <p className="text-2xl font-bold text-orange-600">{stats.pendingPeriods}</p>
+                  <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.pendingPeriods / stats.totalPeriods) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">สัญญาสร้างใหม่</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.crtdContracts}</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">กำลังดำเนินการ</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.inProgressPeriods}</p>
+                  <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.inProgressPeriods / stats.totalPeriods) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">งวดที่รอส่ง</p>
-                <p className="text-3xl font-bold text-orange-600">{stats.pendingPeriods}</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">เสร็จสิ้น</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.completedPeriods}</p>
+                  <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.completedPeriods / stats.totalPeriods) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
               </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">เกินกำหนด</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.overduePeriods}</p>
+                  <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.overduePeriods / stats.totalPeriods) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -261,9 +480,16 @@ export default function DashboardPage() {
                   const daysLeft = getDaysUntilDeadline(period.due_date);
                   return (
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">งวดที่ {period.period_no}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-gray-900">งวดที่ {period.period_no}</p>
+                          <span className="text-gray-400">•</span>
+                          <p className="text-sm font-medium text-blue-600">{period.contract_title}</p>
+                        </div>
                         <p className="text-sm text-gray-500">{formatDateThai(period.due_date)}</p>
+                        {period.description && (
+                          <p className="text-xs text-gray-400 mt-1">{period.description}</p>
+                        )}
                       </div>
                       <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                         daysLeft <= 1 ? 'bg-red-100 text-red-800' :

@@ -23,35 +23,114 @@ export default function NotificationCenter() {
       setLoading(true);
       
       // Fetch contracts first, then periods from each contract
-      const contractsRes = await authFetch('/api/contracts', {}, token);
+      const contractsRes = await authFetch('/api/contracts', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }, token);
       if (contractsRes.ok) {
         const contracts = await contractsRes.json();
         
         // Fetch periods from each contract individually
         const periodPromises = contracts.map(contract =>
-          authFetch(`/api/contracts/${contract.id}/periods`, {}, token)
+          authFetch(`/api/contracts/${contract.id}/periods`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }, token)
             .then(res => (res.ok ? res.json() : []))
             .catch(() => [])
         );
         const periodsArrays = await Promise.all(periodPromises);
-        const periods = periodsArrays.flat();
+        let periods = periodsArrays.flat();
+        
+        // Fallback to /api/periods if no periods found
+        if (periods.length === 0 && contracts.length > 0) {
+          try {
+            const fallbackRes = await authFetch('/api/periods', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }, token);
+            if (fallbackRes.ok) {
+              const fallbackPeriods = await fallbackRes.json();
+              periods = fallbackPeriods;
+            }
+          } catch (fallbackError) {
+            console.error('NotificationCenter: Fallback periods fetch failed:', fallbackError);
+          }
+        }
+        
+        // Debug: Log contracts and periods structure
+        console.log('🔔 NotificationCenter - Debug contracts:', contracts.slice(0, 2).map(c => ({
+          id: c.id,
+          title: c.title,
+          keys: Object.keys(c)
+        })));
+        
+        console.log('🔔 NotificationCenter - Debug periods:', periods.slice(0, 2).map(p => ({
+          id: p.id,
+          contract_id: p.contract_id,
+          keys: Object.keys(p)
+        })));
+        
+        // Create contract lookup map for easy access
+        const contractsMap = contracts.reduce((map, contract) => {
+          map[contract.id] = contract;
+          return map;
+        }, {});
+        
+        console.log('🔔 NotificationCenter - contractsMap keys:', Object.keys(contractsMap));
+        
+        // Helper function to get contract title from various possible field names
+        const getContractTitle = (contract) => {
+          if (!contract) return 'ไม่ระบุสัญญา';
+          
+          // Try different possible field names
+          return contract.title || 
+                 contract.name || 
+                 contract.contract_name || 
+                 contract.contact_name || 
+                 contract.project_name ||
+                 `สัญญา #${contract.id}` || 
+                 'ไม่ระบุสัญญา';
+        };
+        
+        // Enhance periods with contract information
+        const enhancedPeriods = periods.map(period => {
+          const matchedContract = contractsMap[period.contract_id];
+          const contractTitle = getContractTitle(matchedContract);
+          
+          console.log(`🔔 Period ${period.id} (contract_id: ${period.contract_id}) -> Contract found:`, !!matchedContract, 'Title:', contractTitle);
+          
+          return {
+            ...period,
+            contract_title: contractTitle,
+            contract_no: matchedContract?.contract_no || matchedContract?.number || 'N/A',
+            contract_department: matchedContract?.department || matchedContract?.dept || 'N/A'
+          };
+        });
         
         const now = new Date();
         
-        const upcomingDeadlines = periods
+        const upcomingDeadlines = enhancedPeriods
           .filter(period => {
-            if (period.status !== 'รอส่งมอบ') return false;
+            // Check for pending or in-progress periods
+            if (!['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
             
             const dueDate = new Date(period.due_date);
             const alertDate = new Date(dueDate);
-            alertDate.setDate(alertDate.getDate() - (period.alert_days || 0));
+            alertDate.setDate(alertDate.getDate() - (period.alert_days || 7)); // Default 7 days alert
             
             return now >= alertDate && dueDate >= now;
           })
           .map(period => ({
             id: `deadline_${period.id}`,
             type: 'deadline',
-            title: `กำหนดส่งงวดที่ ${period.period_no}`,
+            title: `กำหนดส่งงวดที่ ${period.period_no} - ${period.contract_title}`,
             message: `ครบกำหนดส่งในวันที่ ${new Date(period.due_date).toLocaleDateString('th-TH')}`,
             priority: getDaysUntilDeadline(period.due_date) <= 1 ? 'high' : 'medium',
             createdAt: new Date(),
@@ -60,16 +139,17 @@ export default function NotificationCenter() {
           }));
         
         // Fetch overdue periods
-        const overduePeriods = periods
+        const overduePeriods = enhancedPeriods
           .filter(period => {
-            if (period.status !== 'รอส่ง') return false;
+            // Check for overdue periods that are not completed
+            if (!['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
             const dueDate = new Date(period.due_date);
             return now > dueDate;
           })
           .map(period => ({
             id: `overdue_${period.id}`,
             type: 'overdue',
-            title: `งวดที่ ${period.period_no} เกินกำหนด`,
+            title: `งวดที่ ${period.period_no} เกินกำหนด - ${period.contract_title}`,
             message: `เกินกำหนดส่งแล้ว ${Math.ceil((now - new Date(period.due_date)) / (1000 * 60 * 60 * 24))} วัน`,
             priority: 'high',
             createdAt: new Date(),

@@ -3,9 +3,10 @@ import { useAuth } from '../AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import NotificationCenter from './NotificationCenter';
+import { getAuthMethodBadge } from '../utils/jwtUtils';
 
 export default function Layout({ children }) {
-  const { token, role, logout } = useAuth();
+  const { token, user, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -129,7 +130,18 @@ export default function Layout({ children }) {
                   </svg>
                 </div>
                 <div className="text-sm">
-                  <p className="text-gray-900 font-medium">ผู้ใช้งาน</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-gray-900 font-medium">{user?.username || 'ผู้ใช้งาน'}</p>
+                    {user?.authMethod && (() => {
+                      const badge = getAuthMethodBadge(user.authMethod);
+                      return (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${badge.className}`}>
+                          <span className="mr-1">{badge.icon}</span>
+                          {badge.text}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <p className="text-gray-500 capitalize">{role}</p>
                 </div>
               </div>

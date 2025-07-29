@@ -57,31 +57,28 @@ export default function ReportsPage() {
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     
-    // Filter contracts by date range
-    const filteredContracts = contracts.filter(contract => {
-      const contractDate = new Date(contract.created_at);
-      return contractDate >= startDate && contractDate <= endDate;
-    });
-
-    // Filter periods by date range
-    const filteredPeriods = periods.filter(period => {
-      const periodDate = new Date(period.due_date);
-      return periodDate >= startDate && periodDate <= endDate;
-    });
-
-    // Generate statistics
+    // Use all contracts and periods (don't filter by date for now to see all data)
+    const filteredContracts = contracts;
+    const filteredPeriods = periods;
+    
+    console.log('📊 Reports Debug - Contracts:', filteredContracts.slice(0, 2));
+    console.log('📊 Reports Debug - Periods:', filteredPeriods.slice(0, 2));
+    
+    // Generate statistics with correct status values
     const stats = {
       totalContracts: filteredContracts.length,
       activeContracts: filteredContracts.filter(c => c.status === 'ACTIVE').length,
-      crtdContracts: filteredContracts.filter(c => c.status === 'CRTD').length,
-      expiredContracts: filteredContracts.filter(c => c.status === 'EXPIRED').length,
-      deletedContracts: filteredContracts.filter(c => c.status === 'DELETED').length,
+      pendingContracts: filteredContracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length,
+      completedContracts: filteredContracts.filter(c => c.status === 'COMPLETED').length,
+      cancelledContracts: filteredContracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length,
       
       totalPeriods: filteredPeriods.length,
-      pendingPeriods: filteredPeriods.filter(p => p.status === 'รอส่ง').length,
-      completedPeriods: filteredPeriods.filter(p => p.status === 'ส่งแล้ว').length,
+      pendingPeriods: filteredPeriods.filter(p => ['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
+      completedPeriods: filteredPeriods.filter(p => p.status === 'เสร็จสิ้น').length,
       overduePeriods: filteredPeriods.filter(p => {
-        return p.status === 'รอส่ง' && new Date(p.due_date) < new Date();
+        const isNotCompleted = !['เสร็จสิ้น'].includes(p.status);
+        const isPastDue = new Date(p.due_date) < new Date();
+        return isNotCompleted && isPastDue;
       }).length,
       
       // Department breakdown
@@ -90,6 +87,8 @@ export default function ReportsPage() {
       // Monthly breakdown
       monthlyStats: {}
     };
+    
+    console.log('📊 Reports Stats:', stats);
 
     // Calculate department statistics
     filteredContracts.forEach(contract => {
@@ -99,11 +98,22 @@ export default function ReportsPage() {
           total: 0,
           active: 0,
           pending: 0,
-          completed: 0
+          completed: 0,
+          cancelled: 0
         };
       }
       stats.departmentStats[dept].total++;
-      stats.departmentStats[dept][contract.status]++;
+      
+      // Map contract status to department stats
+      if (contract.status === 'ACTIVE') {
+        stats.departmentStats[dept].active++;
+      } else if (contract.status === 'PENDING' || contract.status === 'CRTD') {
+        stats.departmentStats[dept].pending++;
+      } else if (contract.status === 'COMPLETED') {
+        stats.departmentStats[dept].completed++;
+      } else if (contract.status === 'CANCELLED' || contract.status === 'DELETED') {
+        stats.departmentStats[dept].cancelled++;
+      }
     });
 
     // Calculate monthly statistics
@@ -144,11 +154,14 @@ export default function ReportsPage() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'ACTIVE': return 'text-green-600 bg-green-100';
+      case 'PENDING':
       case 'CRTD': return 'text-blue-600 bg-blue-100';
-      case 'EXPIRED': return 'text-red-600 bg-red-100';
-      case 'DELETED': return 'text-gray-600 bg-gray-100';
-      case 'รอส่ง': return 'text-yellow-600 bg-yellow-100';
-      case 'ส่งแล้ว': return 'text-green-600 bg-green-100';
+      case 'COMPLETED': return 'text-green-600 bg-green-100';
+      case 'CANCELLED':
+      case 'DELETED': return 'text-red-600 bg-red-100';
+      case 'รอดำเนินการ': return 'text-yellow-600 bg-yellow-100';
+      case 'กำลังดำเนินการ': return 'text-blue-600 bg-blue-100';
+      case 'เสร็จสิ้น': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -156,11 +169,14 @@ export default function ReportsPage() {
   const getStatusText = (status) => {
     switch (status) {
       case 'ACTIVE': return 'ใช้งานอยู่';
+      case 'PENDING': return 'รอดำเนินการ';
       case 'CRTD': return 'สร้างใหม่';
-      case 'EXPIRED': return 'หมดอายุ';
+      case 'COMPLETED': return 'เสร็จสิ้น';
+      case 'CANCELLED': return 'ยกเลิก';
       case 'DELETED': return 'ลบแล้ว';
-      case 'รอส่ง': return 'รอส่ง';
-      case 'ส่งแล้ว': return 'ส่งแล้ว';
+      case 'รอดำเนินการ': return 'รอดำเนินการ';
+      case 'กำลังดำเนินการ': return 'กำลังดำเนินการ';
+      case 'เสร็จสิ้น': return 'เสร็จสิ้น';
       default: return status;
     }
   };
@@ -320,6 +336,24 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">งวดเกินกำหนด</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.overduePeriods}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Contract Status Breakdown */}
@@ -356,8 +390,7 @@ export default function ReportsPage() {
                 <div className="space-y-3">
                   {[
                     { key: 'pendingPeriods', label: 'รอดำเนินการ', color: 'yellow' },
-                    { key: 'inProgressPeriods', label: 'กำลังดำเนินการ', color: 'orange' },
-                    { key: 'completedPeriods', label: 'เสร็จสิ้น', color: 'blue' },
+                    { key: 'completedPeriods', label: 'เสร็จสิ้น', color: 'green' },
                     { key: 'overduePeriods', label: 'เกินกำหนด', color: 'red' }
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between">
