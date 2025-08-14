@@ -245,6 +245,36 @@ export default function ContractDetailPage() {
     }
   };
 
+  const handleUpdatePeriodStatus = async (periodId, newStatus) => {
+    const statusText = newStatus === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอดำเนินการ';
+    
+    if (!window.confirm(`ยืนยันการเปลี่ยนสถานะงวดงานเป็น "${statusText}"?`)) {
+      return;
+    }
+    
+    setPeriodMsg(''); 
+    setPeriodError('');
+    
+    try {
+      const res = await authFetch(`/api/contracts/periods/${periodId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      }, token);
+      
+      if (res.ok) {
+        toast.success(`อัปเดตสถานะเป็น "${statusText}" สำเร็จ`);
+        await refreshPeriods();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.message || 'อัปเดตสถานะไม่สำเร็จ');
+      }
+    } catch (error) {
+      console.error('Error updating period status:', error);
+      toast.error('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+    }
+  };
+
   const refreshContract = async () => {
     const res = await authFetch(`/api/contracts/${id}`, {}, token);
     if (res.ok) setContract(await res.json());
@@ -520,14 +550,42 @@ export default function ContractDetailPage() {
                     <td className="p-4 border-b text-center"><AlertDaysCell days={p.alert_days} /></td>
                     <td className="p-4 border-b text-center"><StatusBadge status={p.status} /></td>
                     {role === 'admin' && <td className="p-4 border-b text-center">
-                      <button className="text-blue-600 hover:text-blue-800 underline mr-2 flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => handleEditPeriod(p)}>
-                        <svg className="w-5 h-5 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>
-                        แก้ไข
-                      </button>
-                      <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={() => handleDeletePeriod(p.id)}>
-                        <svg className="w-5 h-5 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        ลบ
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2 justify-center">
+                          <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => handleEditPeriod(p)}>
+                            <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>
+                            แก้ไข
+                          </button>
+                          <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={() => handleDeletePeriod(p.id)}>
+                            <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            ลบ
+                          </button>
+                        </div>
+                        {p.status !== 'เสร็จสิ้น' && (
+                          <button 
+                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
+                            onClick={() => handleUpdatePeriodStatus(p.id, 'เสร็จสิ้น')}
+                            title="ทำเครื่องหมายเสร็จสิ้น"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            เสร็จสิ้น
+                          </button>
+                        )}
+                        {p.status === 'เสร็จสิ้น' && (
+                          <button 
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
+                            onClick={() => handleUpdatePeriodStatus(p.id, 'รอดำเนินการ')}
+                            title="เปลี่ยนเป็นรอดำเนินการ"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            รอดำเนินการ
+                          </button>
+                        )}
+                      </div>
                     </td>}
                   </tr>
                 ))}
