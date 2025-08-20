@@ -11,6 +11,7 @@ export default function DashboardPage() {
     completedContracts: 0,
     cancelledContracts: 0,
     pendingContracts: 0,
+    expiredContracts: 0,
     totalPeriods: 0,
     pendingPeriods: 0,
     inProgressPeriods: 0,
@@ -24,6 +25,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchDashboardData = async () => {
@@ -34,19 +36,20 @@ export default function DashboardPage() {
       const contractsRes = await authFetch('/api/contracts', {}, token);
       if (contractsRes.ok) {
         const contracts = await contractsRes.json();
+        const today = new Date();
         
-        // Calculate contract stats
         const totalContracts = contracts.length;
         const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
         const completedContracts = contracts.filter(c => c.status === 'COMPLETED').length;
-        const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED').length;
+        const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length;
         const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length;
+        const expiredContracts = contracts.filter(c => 
+          c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
+        ).length;
         
         // Fetch periods from each contract individually
-        console.log('📊 Dashboard: Fetching periods for', contracts.length, 'contracts');
         const periodPromises = contracts.map(async (contract) => {
           try {
-            console.log(`📊 Fetching periods for contract ${contract.id}:`, contract.title);
             const res = await authFetch(`/api/contracts/${contract.id}/periods`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -55,25 +58,20 @@ export default function DashboardPage() {
             }, token);
             if (res.ok) {
               const periods = await res.json();
-              console.log(`📊 Contract ${contract.id} has ${periods.length} periods:`, periods.map(p => ({ id: p.id, status: p.status, due_date: p.due_date })));
               return periods;
             } else {
-              console.log(`📊 Failed to fetch periods for contract ${contract.id}:`, res.status, res.statusText);
               return [];
             }
           } catch (error) {
-            console.error(`📊 Error fetching periods for contract ${contract.id}:`, error);
             return [];
           }
         });
         const periodsArrays = await Promise.all(periodPromises);
         let allPeriods = periodsArrays.flat();
         
-        console.log('📊 Total periods found:', allPeriods.length);
         
         // Fallback: Try to fetch all periods at once if individual fetching failed
         if (allPeriods.length === 0 && contracts.length > 0) {
-          console.log('📊 Trying fallback: fetching all periods from /api/periods');
           try {
             const fallbackRes = await authFetch('/api/periods', {
               headers: {
@@ -83,35 +81,14 @@ export default function DashboardPage() {
             }, token);
             if (fallbackRes.ok) {
               const fallbackPeriods = await fallbackRes.json();
-              console.log('📊 Fallback found', fallbackPeriods.length, 'periods');
               allPeriods = fallbackPeriods;
             } else {
-              console.log('📊 Fallback API returned:', fallbackRes.status, fallbackRes.statusText);
             }
           } catch (fallbackError) {
-            console.log('📊 Fallback also failed:', fallbackError);
           }
         }
         
-        // Debug: Log contracts structure
-        console.log('🔍 Debug contracts structure:', contracts.slice(0, 2));
-        console.log('🔍 Debug contracts keys and values:', contracts.slice(0, 1).map(c => ({
-          id: c.id,
-          title: c.title,
-          name: c.name,
-          contract_no: c.contract_no,
-          contact_name: c.contact_name,
-          keys: Object.keys(c),
-          fullObject: c
-        })));
         
-        // Debug: Log periods structure
-        console.log('🔍 Debug periods structure:', allPeriods.slice(0, 2).map(p => ({
-          id: p.id,
-          contract_id: p.contract_id,
-          period_no: p.period_no,
-          keys: Object.keys(p)
-        })));
         
         // Create contract lookup map for easy access
         const contractsMap = contracts.reduce((map, contract) => {
@@ -119,7 +96,6 @@ export default function DashboardPage() {
           return map;
         }, {});
         
-        console.log('🔍 Debug contractsMap keys:', Object.keys(contractsMap));
         
         // Helper function to get contract title from various possible field names
         const getContractTitle = (contract) => {
@@ -140,7 +116,6 @@ export default function DashboardPage() {
           const matchedContract = contractsMap[period.contract_id];
           const contractTitle = getContractTitle(matchedContract);
           
-          console.log(`🔍 Period ${period.id} (contract_id: ${period.contract_id}) -> Contract found:`, !!matchedContract, 'Title:', contractTitle);
           
           return {
             ...period,
@@ -150,37 +125,29 @@ export default function DashboardPage() {
           };
         });
         
-        // Log final periods count for debugging
-        console.log('📊 Final periods count:', enhancedPeriods.length);
-        if (enhancedPeriods.length > 0) {
-          console.log('📊 Sample periods with contract info:', enhancedPeriods.slice(0, 3).map(p => ({ 
-            id: p.id, 
-            status: p.status, 
-            due_date: p.due_date, 
-            contract_id: p.contract_id,
-            contract_title: p.contract_title,
-            amount: p.amount,
-            description: p.description 
-          })));
-        }
         
         // Calculate period stats using enhanced periods
         const totalPeriods = enhancedPeriods.length;
-        const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
-        const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
-        const completedPeriods = enhancedPeriods.filter(p => p.status === 'เสร็จสิ้น').length;
-        
-        // Calculate overdue periods
-        const today = new Date();
+        const completedPeriods = enhancedPeriods.filter(p => 
+          p.status === 'เสร็จสิ้น' || 
+          p.status === 'completed' || 
+          p.status === 'COMPLETED'
+        ).length;
         const overduePeriods = enhancedPeriods.filter(p => {
           const dueDate = new Date(p.due_date);
-          return dueDate < today && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
+          const isCompleted = p.status === 'เสร็จสิ้น' || 
+                             p.status === 'completed' || 
+                             p.status === 'COMPLETED';
+          return !isCompleted && dueDate < new Date();
         }).length;
+        const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
+        const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
         
         // Calculate upcoming deadlines (next 7 days) with contract names
+        const currentDate = new Date();
         const upcomingDeadlines = enhancedPeriods.filter(p => {
           const dueDate = new Date(p.due_date);
-          const diffTime = dueDate - today;
+          const diffTime = dueDate - currentDate;
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           return diffDays >= 0 && diffDays <= 7 && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
         }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
@@ -196,6 +163,7 @@ export default function DashboardPage() {
           completedContracts,
           cancelledContracts,
           pendingContracts,
+          expiredContracts,
           totalPeriods,
           pendingPeriods,
           inProgressPeriods,
@@ -267,7 +235,7 @@ export default function DashboardPage() {
         {/* Contract Stats */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">สถานะสัญญา</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -331,12 +299,27 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500">ยกเลิก</p>
-                  <p className="text-2xl font-bold text-red-600">{stats.cancelledContracts}</p>
+                  <p className="text-2xl font-bold text-gray-600">{stats.cancelledContracts}</p>
                   <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.cancelledContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">หมดอายุ</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.expiredContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.expiredContracts / stats.totalContracts) * 100) : 0}%)</p>
                 </div>
                 <div className="p-2 bg-red-100 rounded-lg">
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>

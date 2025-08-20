@@ -4,12 +4,13 @@ import { authFetch, useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import AddContract from '../components/AddContract';
 import { printContract } from '../utils/printUtils';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 function PeriodModal({ open, onClose, onSave, initial }) {
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
   const [dueDate, setDueDate] = useState(initial?.dueDate || initial?.due_date || '');
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
+  const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
   const [error, setError] = useState('');
   const inputRef = useRef();
 
@@ -17,6 +18,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
     setNumber(initial?.periodNo || initial?.period_no || '');
     setDueDate(initial?.dueDate || initial?.due_date || '');
     setAlertDays(initial?.alert_days ?? 0);
+    setStatus(initial?.status || 'รอดำเนินการ');
     setError('');
     if (open && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -49,11 +51,27 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           <label className="block text-sm font-semibold mb-1">แจ้งเตือนล่วงหน้า (วัน)</label>
           <input type="number" min="0" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={alertDays} onChange={e => setAlertDays(Number(e.target.value))} placeholder="0 = ไม่แจ้งเตือน" aria-label="แจ้งเตือนล่วงหน้า (วัน)" />
         </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">สถานะ</label>
+          <select 
+            className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" 
+            value={status} 
+            onChange={e => setStatus(e.target.value)}
+            aria-label="สถานะงวดงาน"
+          >
+            <option value="รอดำเนินการ">รอดำเนินการ</option>
+            <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+            <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+          </select>
+        </div>
         {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
         <div className="flex gap-2 mt-4">
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1 flex items-center justify-center gap-1" onClick={() => {
             if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
-            onSave({ periodNo: Number(number), dueDate, alert_days: alertDays });
+            // ส่ง id กลับไปด้วยถ้าเป็นการแก้ไข
+            const saveData = { periodNo: Number(number), dueDate, alert_days: alertDays, status };
+            if (initial?.id) saveData.id = initial.id;
+            onSave(saveData);
           }} aria-label="บันทึก">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
             บันทึก
@@ -65,12 +83,6 @@ function PeriodModal({ open, onClose, onSave, initial }) {
   );
 }
 
-// เพิ่มฟังก์ชันแปลงวันที่ให้อ่านง่าย
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' });
-}
 
 // ฟังก์ชันแปลงวันที่แบบไทยพร้อมไอคอน
 function formatDateThaiWithIcon(dateStr) {
@@ -222,19 +234,21 @@ export default function ContractDetailPage() {
     }
   };
   const handleSavePeriod = async (data) => {
-    setPeriodMsg(''); setPeriodError('');
-    const isEdit = !!periodModal.initial;
-    const url = isEdit ? `/api/contracts/${id}/periods/${periodModal.initial.id}` : `/api/contracts/${id}/periods`;
+    // ใช้ id จาก data ที่ส่งมาจาก modal หรือจาก initial
+    const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
+    const isEdit = !!periodId;
     const method = isEdit ? 'PUT' : 'POST';
-    // ตรวจสอบว่ามี alert_days
-    if (typeof data.alert_days === 'undefined') {
+    const url = isEdit ? `/api/periods/${periodId}` : `/api/contracts/${id}/periods`;
+    if (data.alert_days === undefined || data.alert_days === null) {
       toast.error('กรุณากรอกจำนวนวันแจ้งเตือนล่วงหน้า');
       return;
     }
+    // ลบ id ออกจาก data ก่อนส่งไป backend
+    const { id: _, ...periodData } = data;
     const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(periodData)
     }, token);
     if (res.ok) {
       toast.success(isEdit ? 'แก้ไขงวดงานสำเร็จ' : 'เพิ่มงวดงานสำเร็จ');
@@ -256,7 +270,7 @@ export default function ContractDetailPage() {
     setPeriodError('');
     
     try {
-      const res = await authFetch(`/api/contracts/periods/${periodId}`, {
+      const res = await authFetch(`/api/periods/${periodId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

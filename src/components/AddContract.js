@@ -18,21 +18,50 @@ function validateEmails(emailString) {
 }
 
 export default function AddContract({ initial, onSuccess, onClose }) {
-  const [form, setForm] = useState(initial || {
-    contractNo: "",
-    contractDate: "",
-    contactName: "",
-    department: "",
-    startDate: "",
-    endDate: "",
-    periodCount: 1,
-    remark1: "",
-    remark2: "",
-    remark3: "",
-    remark4: "",
-    alertEmails: "",
-    status: "CRTD"
-  });
+  // แปลงข้อมูลจาก backend format เป็น form format
+  const getInitialFormData = () => {
+    if (!initial) {
+      return {
+        contractNo: "",
+        contractDate: "",
+        contactName: "",
+        department: "",
+        startDate: "",
+        endDate: "",
+        periodCount: "",
+        remark1: "",
+        remark2: "",
+        remark3: "",
+        remark4: "",
+        alertEmails: "",
+        status: "CRTD"
+      };
+    }
+    
+    // แปลงวันที่จาก backend format เป็น input date format
+    const formatDate = (dateStr) => {
+      if (!dateStr) return "";
+      return dateStr.split('T')[0];
+    };
+    
+    return {
+      contractNo: initial.contract_no || initial.contractNo || "",
+      contractDate: formatDate(initial.contract_date || initial.contractDate) || "",
+      contactName: initial.contact_name || initial.contactName || "",
+      department: initial.department || "",
+      startDate: formatDate(initial.start_date || initial.startDate) || "",
+      endDate: formatDate(initial.end_date || initial.endDate) || "",
+      periodCount: String(initial.period_count || initial.periodCount || ""),
+      remark1: initial.remark1 || "",
+      remark2: initial.remark2 || "",
+      remark3: initial.remark3 || "",
+      remark4: initial.remark4 || "",
+      alertEmails: initial.alert_emails || initial.alertEmails || "",
+      status: initial.status || "CRTD"
+    };
+  };
+  
+  const [form, setForm] = useState(getInitialFormData());
   const [emailError, setEmailError] = useState("");
   const [formError, setFormError] = useState({ contactName: '', department: '' });
 
@@ -75,11 +104,24 @@ export default function AddContract({ initial, onSuccess, onClose }) {
     }
     const token = localStorage.getItem('token');
     const isEdit = !!initial;
-    const payload = { ...form };
-    if (payload.alertEmails) {
-      payload.alertEmails = payload.alertEmails.split(',').map(e => e.trim()).filter(e => e !== '').join(', ');
-    }
-    console.log('payload', payload);
+    
+    // แปลงข้อมูลจาก camelCase เป็น snake_case สำหรับ backend
+    const payload = {
+      contract_no: form.contractNo,
+      contract_date: form.contractDate,
+      contact_name: form.contactName,
+      department: form.department,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      period_count: form.periodCount ? parseInt(form.periodCount) : null,
+      remark1: form.remark1,
+      remark2: form.remark2,
+      remark3: form.remark3,
+      remark4: form.remark4,
+      alert_emails: form.alertEmails ? form.alertEmails.split(',').map(e => e.trim()).filter(e => e !== '').join(', ') : '',
+      status: form.status
+    };
+    
     let res;
     try {
       res = await fetch(isEdit ? `/api/contracts/${initial.id}` : '/api/contracts', {
@@ -290,6 +332,8 @@ export default function AddContract({ initial, onSuccess, onClose }) {
             >
               <option value="CRTD">สร้างใหม่</option>
               <option value="ACTIVE">ใช้งาน</option>
+              <option value="COMPLETED">เสร็จสิ้น</option>
+              <option value="CANCELLED">ยกเลิก</option>
               <option value="EXPIRED">หมดอายุ</option>
               <option value="DELETED">ลบแล้ว</option>
             </select>

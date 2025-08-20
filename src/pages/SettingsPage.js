@@ -38,6 +38,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSettings = async () => {
@@ -95,7 +96,7 @@ export default function SettingsPage() {
       
       if (profileData.newPassword) {
         updateData.currentPassword = profileData.currentPassword;
-        updateData.newPassword = profileData.newPassword;
+        updateData.password = profileData.newPassword; // Backend expects 'password', not 'newPassword'
       }
       
       const res = await authFetch('/api/users/profile', {

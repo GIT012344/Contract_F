@@ -11,9 +11,13 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     fetchNotifications();
-    // Set up periodic check for new notifications
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(fetchNotifications, 5 * 60 * 1000); // Check every 5 minutes
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchNotifications = async () => {
@@ -198,6 +202,20 @@ export default function NotificationCenter() {
     setUnreadCount(0);
   };
 
+  const deleteNotification = (notificationId) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    const notification = notifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+  };
+
+  const deleteAllNotifications = () => {
+    setNotifications([]);
+    setUnreadCount(0);
+    toast.success('ลบการแจ้งเตือนทั้งหมดแล้ว');
+  };
+
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high': return 'text-red-600 bg-red-50 border-red-200';
@@ -255,14 +273,24 @@ export default function NotificationCenter() {
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">การแจ้งเตือน</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                อ่านทั้งหมด
-              </button>
-            )}
+            <div className="flex items-center space-x-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  อ่านทั้งหมด
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={deleteAllNotifications}
+                  className="text-sm text-red-600 hover:text-red-800 font-medium"
+                >
+                  ลบทั้งหมด
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notifications List */}
@@ -285,16 +313,18 @@ export default function NotificationCenter() {
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                  className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                     !notification.read ? 'bg-blue-50' : ''
                   }`}
-                  onClick={() => markAsRead(notification.id)}
                 >
                   <div className="flex items-start space-x-3">
                     <div className={`flex-shrink-0 p-1 rounded-full ${getPriorityColor(notification.priority)}`}>
                       {getPriorityIcon(notification.type)}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div 
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => markAsRead(notification.id)}
+                    >
                       <p className={`text-sm font-medium ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
                         {notification.title}
                       </p>
@@ -305,9 +335,23 @@ export default function NotificationCenter() {
                         {notification.createdAt.toLocaleString('th-TH')}
                       </p>
                     </div>
-                    {!notification.read && (
-                      <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full"></div>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {!notification.read && (
+                        <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full"></div>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
+                        className="text-gray-400 hover:text-red-600 transition-colors"
+                        title="ลบการแจ้งเตือน"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))

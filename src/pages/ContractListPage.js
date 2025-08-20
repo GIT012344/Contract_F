@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authFetch, useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
@@ -18,35 +18,108 @@ export default function ContractListPage() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState({ number: '', name: '', department: '', start: '', end: '' });
+  const [search, setSearch] = useState({ number: '', name: '', department: '', start: '', end: '', status: '' });
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [refreshKey] = useState(0); // เพิ่ม state สำหรับ trigger refresh
   const navigate = useNavigate();
   const { token, role } = useAuth();
 
-  useEffect(() => {
+  // ฟังก์ชันสำหรับโหลดข้อมูลสัญญา
+  const loadContracts = useCallback(() => {
+    if (!token) return;
+    
     setLoading(true);
     authFetch('/api/contracts', {}, token)
       .then(async res => {
         if (res.status === 401) throw new Error('Session หมดอายุ');
-        if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
-        return res.json();
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+        setContracts(data);
       })
-      .then(setContracts)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
 
+  useEffect(() => {
+    loadContracts();
+  }, [loadContracts, refreshKey]);
+
+  // Auto refresh ทุก 30 วินาทีเมื่ออยู่ในหน้านี้
+  useEffect(() => {
+    let interval;
+    if (token) {
+      // Auto refresh every 30 seconds
+      interval = setInterval(() => {
+        loadContracts();
+      }, 30000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [token, loadContracts]);
+
+  // Refresh เมื่อ focus กลับมาที่หน้านี้
+  useEffect(() => {
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadContracts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => document.removeEventListener('visibilitychange', handleFocus);
+  }, [loadContracts]);
+
+  // Refresh เมื่อ window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      loadContracts();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [loadContracts]);
+
   const handleRowClick = id => navigate(`/contracts/${id}`);
 
-  const filtered = contracts.filter(c =>
-    (!search.number || c.number?.includes(search.number)) &&
-    (!search.name || c.name?.includes(search.name)) &&
-    (!search.department || c.department?.includes(search.department)) &&
-    (!search.start || (c.startDate && c.startDate >= search.start)) &&
-    (!search.end || (c.endDate && c.endDate <= search.end))
-  );
+  const filtered = contracts.filter(c => {
+    // Case-insensitive search
+    const matchNumber = !search.number || c.contract_no?.toLowerCase().includes(search.number.toLowerCase());
+    const matchName = !search.name || c.contact_name?.toLowerCase().includes(search.name.toLowerCase());
+    const matchDepartment = !search.department || c.department?.toLowerCase().includes(search.department.toLowerCase());
+    
+    // Status matching - handle EXPIRED specially to check actual dates
+    let matchStatus = !search.status;
+    if (search.status) {
+      if (search.status === 'EXPIRED') {
+        // Check if contract is expired based on end_date OR has EXPIRED/EXPIRE status
+        const isExpired = c.end_date && new Date(c.end_date) < new Date();
+        matchStatus = c.status === 'EXPIRED' || c.status === 'EXPIRE' || isExpired;
+      } else if (search.status === 'COMPLETED') {
+        // รองรับทั้งภาษาอังกฤษและภาษาไทย
+        matchStatus = c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น';
+      } else if (search.status === 'CANCELLED') {
+        matchStatus = c.status === 'CANCELLED' || c.status === 'ยกเลิก';
+      } else if (search.status === 'DELETED') {
+        matchStatus = c.status === 'DELETED' || c.status === 'ลบแล้ว';
+      } else if (search.status === 'CRTD') {
+        matchStatus = c.status === 'CRTD' || c.status === 'สร้างใหม่';
+      } else {
+        matchStatus = c.status === search.status;
+      }
+    }
+    
+    // Date filtering - check both start_date and end_date fields
+    const matchStartDate = !search.start || 
+      (c.start_date && new Date(c.start_date) >= new Date(search.start)) ||
+      (c.end_date && new Date(c.end_date) >= new Date(search.start));
+    
+    const matchEndDate = !search.end || 
+      (c.start_date && new Date(c.start_date) <= new Date(search.end)) ||
+      (c.end_date && new Date(c.end_date) <= new Date(search.end));
+    
+    return matchNumber && matchName && matchDepartment && matchStatus && matchStartDate && matchEndDate;
+  });
 
   // Export functions
   const handleExportCSV = () => {
@@ -269,22 +342,54 @@ export default function ContractListPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">วันที่เริ่ม</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">วันเริ่ม</label>
               <input 
-                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 type="date" 
+                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 value={search.start} 
                 onChange={e => setSearch(s => ({ ...s, start: e.target.value }))}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">วันที่สิ้นสุด</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">วันสิ้นสุด</label>
               <input 
-                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 type="date" 
+                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 value={search.end} 
                 onChange={e => setSearch(s => ({ ...s, end: e.target.value }))}
               />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">สถานะ</label>
+              <select 
+                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
+                value={search.status} 
+                onChange={e => setSearch(s => ({ ...s, status: e.target.value }))}
+              >
+                <option value="">ทั้งหมด</option>
+                <option value="ACTIVE">ใช้งาน (Active)</option>
+                <option value="PENDING">รอดำเนินการ (Pending)</option>
+                <option value="COMPLETED">เสร็จสิ้น (Completed)</option>
+                <option value="CANCELLED">ยกเลิก (Cancelled)</option>
+                <option value="CRTD">สร้างใหม่ (Created)</option>
+                <option value="EXPIRED">หมดอายุ (Expired)</option>
+                <option value="DELETED">ลบแล้ว (Deleted)</option>
+              </select>
+            </div>
+            <div className="lg:col-span-3"></div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">&nbsp;</label>
+              <button 
+                onClick={() => setSearch({ number: '', name: '', department: '', start: '', end: '', status: '' })}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-200"
+              >
+                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                ล้างการค้นหา
+              </button>
             </div>
           </div>
         </div>
@@ -349,15 +454,26 @@ export default function ContractListPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             c.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                            c.status === 'EXPIRED' ? 'bg-red-100 text-red-800' :
+                            c.status === 'EXPIRED' || c.status === 'EXPIRE' || (c.end_date && new Date(c.end_date) < new Date()) ? 'bg-red-100 text-red-800' :
                             c.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'bg-blue-100 text-blue-800' :
+                            c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'bg-gray-100 text-gray-800' :
+                            c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'bg-purple-100 text-purple-800' :
+                            c.status === 'DELETED' || c.status === 'ลบแล้ว' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {c.status}
+                            {c.status === 'ACTIVE' ? 'ใช้งาน' :
+                             c.status === 'EXPIRED' || c.status === 'EXPIRE' || (c.end_date && new Date(c.end_date) < new Date()) ? 'หมดอายุ' :
+                             c.status === 'PENDING' ? 'รอดำเนินการ' :
+                             c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'เสร็จสิ้น' :
+                             c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'ยกเลิก' :
+                             c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'สร้างใหม่' :
+                             c.status === 'DELETED' || c.status === 'ลบแล้ว' ? 'ลบแล้ว' :
+                             c.status || '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {['EXPIRED','DELETED'].includes(c.status) ? '-' : daysLeft(c.end_date)}
+                          {['EXPIRED','EXPIRE','DELETED','COMPLETED','CANCELLED','เสร็จสิ้น','ยกเลิก','ลบแล้ว'].includes(c.status) ? '-' : daysLeft(c.end_date)}
                         </td>
                       </tr>
                     ))

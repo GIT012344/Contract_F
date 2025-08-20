@@ -19,12 +19,14 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (contracts.length > 0 && periods.length > 0) {
+    if (contracts.length > 0 || periods.length > 0) {
       generateReport();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contracts, periods, dateRange]);
 
   const fetchData = async () => {
@@ -61,8 +63,6 @@ export default function ReportsPage() {
     const filteredContracts = contracts;
     const filteredPeriods = periods;
     
-    console.log('📊 Reports Debug - Contracts:', filteredContracts.slice(0, 2));
-    console.log('📊 Reports Debug - Periods:', filteredPeriods.slice(0, 2));
     
     // Generate statistics with correct status values
     const stats = {
@@ -74,11 +74,17 @@ export default function ReportsPage() {
       
       totalPeriods: filteredPeriods.length,
       pendingPeriods: filteredPeriods.filter(p => ['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
-      completedPeriods: filteredPeriods.filter(p => p.status === 'เสร็จสิ้น').length,
+      completedPeriods: filteredPeriods.filter(p => 
+        p.status === 'เสร็จสิ้น' || 
+        p.status === 'completed' || 
+        p.status === 'COMPLETED'
+      ).length,
       overduePeriods: filteredPeriods.filter(p => {
-        const isNotCompleted = !['เสร็จสิ้น'].includes(p.status);
+        const isCompleted = p.status === 'เสร็จสิ้น' || 
+                           p.status === 'completed' || 
+                           p.status === 'COMPLETED';
         const isPastDue = new Date(p.due_date) < new Date();
-        return isNotCompleted && isPastDue;
+        return !isCompleted && isPastDue;
       }).length,
       
       // Department breakdown
@@ -88,7 +94,6 @@ export default function ReportsPage() {
       monthlyStats: {}
     };
     
-    console.log('📊 Reports Stats:', stats);
 
     // Calculate department statistics
     filteredContracts.forEach(contract => {
@@ -252,9 +257,15 @@ export default function ReportsPage() {
             </div>
             <div className="sm:col-span-2 flex items-end">
               <button
-                onClick={generateReport}
+                onClick={() => {
+                  generateReport();
+                  toast.success('สร้างรายงานสำเร็จ');
+                }}
                 className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
                 สร้างรายงาน
               </button>
             </div>
@@ -264,7 +275,7 @@ export default function ReportsPage() {
         {reportData && (
           <>
             {/* Overview Statistics */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-6">
               <div className="bg-white overflow-hidden shadow rounded-lg">
                 <div className="p-5">
                   <div className="flex items-center">
@@ -341,14 +352,104 @@ export default function ReportsPage() {
                 <div className="p-5">
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดเกินกำหนด</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.overduePeriods}</dd>
+                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่เสร็จสิ้น</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.completedContracts}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">รอดำเนินการ</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.pendingContracts}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">งวดเสร็จสิ้น</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.completedPeriods}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">หน่วยงานทั้งหมด</dt>
+                        <dd className="text-lg font-medium text-gray-900">{Object.keys(reportData.departmentStats || {}).length}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">งวดงานทั้งหมด</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.totalPeriods}</dd>
+                      </dl>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <div className="ml-5 w-0 flex-1">
+                      <dl>
+                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่ยกเลิก</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.cancelledContracts || 0}</dd>
                       </dl>
                     </div>
                   </div>
