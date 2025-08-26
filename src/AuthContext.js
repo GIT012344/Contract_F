@@ -58,7 +58,8 @@ export function AuthProvider({ children }) {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
+    // Hardcode for production (temporary fix - should use env var)
+    const apiUrl = 'https://contract-b.onrender.com';
     const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
     
     return fetch(fullUrl, {
