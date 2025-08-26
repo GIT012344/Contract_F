@@ -22,7 +22,8 @@ export default function RegisterPage() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await fetch('http://localhost:5005/api/departments/public');
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
+        const response = await fetch(`${apiUrl}/api/departments/public`);
         if (response.ok) {
           const data = await response.json();
           setDepartments(data);

@@ -168,7 +168,8 @@ export default function AddContract({ isOpen, onClose, onSuccess, initial, token
     const fetchDepartments = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5005/api/settings/departments', {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
+        const response = await fetch(`${apiUrl}/api/settings/departments`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
