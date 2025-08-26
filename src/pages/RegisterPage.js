@@ -1,44 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ 
-    username: '', 
-    password: '', 
-    confirmPassword: '', 
-    role: 'user' 
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    confirmPassword: '',
+    department: '',
+    role: 'user', // Default to user role
+    adminPin: '' // PIN for admin registration
   });
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch('http://localhost:5005/api/departments/public');
+        if (response.ok) {
+          const data = await response.json();
+          setDepartments(data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const validateForm = () => {
-    if (!form.username.trim()) {
+    if (!formData.username.trim()) {
       toast.error('กรุณากรอกชื่อผู้ใช้');
       return false;
     }
     
-    if (form.username.trim().length < 3) {
+    if (formData.username.trim().length < 3) {
       toast.error('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร');
       return false;
     }
     
-    if (!form.password) {
+    if (!formData.password) {
       toast.error('กรุณากรอกรหัสผ่าน');
       return false;
     }
     
-    if (form.password.length < 6) {
+    if (formData.password.length < 6) {
       toast.error('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
       return false;
     }
     
-    if (form.password !== form.confirmPassword) {
+    if (formData.password !== formData.confirmPassword) {
       toast.error('รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง');
+      return false;
+    }
+    
+    if (!formData.department) {
+      toast.error('กรุณาเลือกหน่วยงานที่ประจำ');
+      return false;
+    }
+    
+    if (formData.role === 'admin' && formData.adminPin.length !== 6) {
+      toast.error('PIN สำหรับผู้ดูแลระบบต้องมี 6 หลัก');
       return false;
     }
     
@@ -53,9 +81,11 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const registerData = {
-        username: form.username.trim(),
-        password: form.password,
-        role: form.role
+        username: formData.username,
+        password: formData.password,
+        department_id: parseInt(formData.department),
+        role: formData.role,
+        adminPin: formData.role === 'admin' ? formData.adminPin : undefined
       };
 
       const res = await fetch('/api/users/register', {
@@ -100,7 +130,7 @@ export default function RegisterPage() {
           <label className="block font-semibold mb-1 text-gray-700">ชื่อผู้ใช้ (Username)</label>
           <input 
             name="username" 
-            value={form.username}
+            value={formData.username}
             onChange={handleChange} 
             placeholder="กรอกชื่อผู้ใช้" 
             required 
@@ -114,7 +144,7 @@ export default function RegisterPage() {
           <input 
             name="password" 
             type="password" 
-            value={form.password}
+            value={formData.password}
             onChange={handleChange} 
             placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" 
             required 
@@ -129,7 +159,7 @@ export default function RegisterPage() {
           <input 
             name="confirmPassword" 
             type="password" 
-            value={form.confirmPassword}
+            value={formData.confirmPassword}
             onChange={handleChange} 
             placeholder="กรอกรหัสผ่านอีกครั้ง" 
             required 
@@ -138,18 +168,56 @@ export default function RegisterPage() {
           />
         </div>
         
-        <div className="mb-6">
-          <label className="block font-semibold mb-1 text-gray-700">สิทธิ์การใช้งาน</label>
+        <div className="mb-4">
+          <label className="block font-semibold mb-1 text-gray-700">หน่วยงานที่ประจำ</label>
           <select 
-            name="role" 
-            value={form.role}
+            name="department" 
+            value={formData.department}
             onChange={handleChange} 
+            required
             className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+          >
+            <option value="">-- เลือกหน่วยงาน --</option>
+            {departments.map(dept => (
+              <option key={dept.id} value={dept.id}>
+                {dept.department_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            สิทธิ์การใช้งาน
+          </label>
+          <select
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
           >
             <option value="user">ผู้ใช้ทั่วไป</option>
             <option value="admin">ผู้ดูแลระบบ</option>
           </select>
         </div>
+
+        {formData.role === 'admin' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              PIN สำหรับผู้ดูแลระบบ (6 หลัก)
+            </label>
+            <input
+              type="password"
+              name="adminPin"
+              value={formData.adminPin}
+              onChange={handleChange}
+              maxLength="6"
+              placeholder="กรอก PIN 6 หลัก"
+              required={formData.role === 'admin'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+            />
+          </div>
+        )}
         
         <button 
           type="submit" 

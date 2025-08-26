@@ -1,26 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ username: '', password: '', role: 'user' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState('');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [registerForm, setRegisterForm] = useState({ 
-    username: '', 
-    password: '', 
-    confirmPassword: '', 
-    role: 'user' 
+  const [registrationData, setRegistrationData] = useState({
+    username: '',
+    password: '',
+    confirmPassword: '',
+    department: '',
+    role: 'user', // Default to user role
+    adminPin: '' // PIN for admin registration
   });
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-  const handleRegisterChange = e => setRegisterForm({ ...registerForm, [e.target.name]: e.target.value });
+  const handleRegisterChange = e => setRegistrationData({ ...registrationData, [e.target.name]: e.target.value });
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch('http://localhost:5005/api/departments/public');
+        if (response.ok) {
+          const data = await response.json();
+          setDepartments(data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -59,16 +77,16 @@ export default function LoginPage() {
 
   const openRegisterModal = () => {
     setShowRegisterModal(true);
-    setRegisterForm({ username: '', password: '', confirmPassword: '', role: 'user' });
+    setRegistrationData({ username: '', password: '', confirmPassword: '', department: '', role: 'user', adminPin: '' });
   };
 
   const closeRegisterModal = () => {
     setShowRegisterModal(false);
-    setRegisterForm({ username: '', password: '', confirmPassword: '', role: 'user' });
+    setRegistrationData({ username: '', password: '', confirmPassword: '', department: '', role: 'user', adminPin: '' });
   };
 
   const validateRegisterForm = () => {
-    const { username, password, confirmPassword } = registerForm;
+    const { username, password, confirmPassword } = registrationData;
     
     if (!username.trim()) {
       toast.error('กรุณากรอกชื่อผู้ใช้');
@@ -95,6 +113,16 @@ export default function LoginPage() {
       return false;
     }
     
+    if (!registrationData.department) {
+      toast.error('กรุณาเลือกหน่วยงานที่ประจำ');
+      return false;
+    }
+    
+    if (registrationData.role === 'admin' && registrationData.adminPin.length !== 6) {
+      toast.error('PIN สำหรับผู้ดูแลระบบต้องมี 6 หลัก');
+      return false;
+    }
+    
     return true;
   };
 
@@ -106,9 +134,11 @@ export default function LoginPage() {
     setRegisterLoading(true);
     try {
       const registerData = {
-        username: registerForm.username.trim(),
-        password: registerForm.password,
-        role: registerForm.role
+        username: registrationData.username,
+        password: registrationData.password,
+        department_id: parseInt(registrationData.department),
+        role: registrationData.role,
+        adminPin: registrationData.role === 'admin' ? registrationData.adminPin : undefined
       };
 
       const res = await fetch('/api/users/register', {
@@ -214,18 +244,6 @@ export default function LoginPage() {
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้งาน</label>
-                <select 
-                  name="role" 
-                  onChange={handleChange} 
-                  value={form.role} 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
-                >
-                  <option value="user">ผู้ใช้ทั่วไป</option>
-                  <option value="admin">ผู้ดูแลระบบ</option>
-                </select>
-              </div>
             </div>
             
             <div className="mt-6">
@@ -291,7 +309,7 @@ export default function LoginPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
                   <input 
                     name="username" 
-                    value={registerForm.username}
+                    value={registrationData.username}
                     onChange={handleRegisterChange} 
                     placeholder="กรอกชื่อผู้ใช้" 
                     required 
@@ -305,7 +323,7 @@ export default function LoginPage() {
                   <input 
                     name="password" 
                     type="password" 
-                    value={registerForm.password}
+                    value={registrationData.password}
                     onChange={handleRegisterChange} 
                     placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" 
                     required 
@@ -320,7 +338,7 @@ export default function LoginPage() {
                   <input 
                     name="confirmPassword" 
                     type="password" 
-                    value={registerForm.confirmPassword}
+                    value={registrationData.confirmPassword}
                     onChange={handleRegisterChange} 
                     placeholder="กรอกรหัสผ่านอีกครั้ง" 
                     required 
@@ -330,17 +348,55 @@ export default function LoginPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">สิทธิ์การใช้งาน</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">หน่วยงานที่ประจำ</label>
                   <select 
-                    name="role" 
-                    value={registerForm.role}
+                    name="department" 
+                    value={registrationData.department}
                     onChange={handleRegisterChange} 
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                  >
+                    <option value="">-- เลือกหน่วยงาน --</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.department_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    สิทธิ์การใช้งาน
+                  </label>
+                  <select
+                    name="role"
+                    value={registrationData.role}
+                    onChange={(e) => setRegistrationData({...registrationData, role: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
                   >
                     <option value="user">ผู้ใช้ทั่วไป</option>
                     <option value="admin">ผู้ดูแลระบบ</option>
                   </select>
                 </div>
+
+                {registrationData.role === 'admin' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PIN สำหรับผู้ดูแลระบบ (6 หลัก)
+                    </label>
+                    <input
+                      type="password"
+                      name="adminPin"
+                      value={registrationData.adminPin}
+                      onChange={(e) => setRegistrationData({...registrationData, adminPin: e.target.value})}
+                      maxLength="6"
+                      placeholder="กรอก PIN 6 หลัก"
+                      required={registrationData.role === 'admin'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="flex gap-3 mt-6">

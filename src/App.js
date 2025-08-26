@@ -15,6 +15,7 @@ const ContractListPage = lazy(() => import('./pages/ContractListPage'));
 const ContractDetailPage = lazy(() => import('./pages/ContractDetailPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
+const DepartmentManagement = lazy(() => import('./pages/DepartmentManagement'));
 
 export default function App() {
   return (
@@ -71,6 +72,11 @@ export default function App() {
               <Route path="/help" element={
                 <ProtectedRoute>
                   <HelpPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/departments" element={
+                <ProtectedRoute>
+                  <DepartmentManagement />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<Navigate to="/dashboard" />} />

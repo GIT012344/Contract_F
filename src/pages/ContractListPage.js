@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authFetch, useAuth } from '../AuthContext';
+import { useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import AddContract from '../components/AddContract';
 import { exportContractsToCSV, downloadCSV, generateSummaryReport, exportSummaryToCSV, parseCSV, validateImportData } from '../utils/exportUtils';
@@ -18,15 +18,52 @@ export default function ContractListPage() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState({ number: '', name: '', department: '', start: '', end: '', status: '' });
-  const [showAdd, setShowAdd] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [filters, setFilters] = useState({
+    contractNo: "",
+    contactName: "",
+    department: "",
+    status: "",
+    startDateFrom: "",
+    startDateTo: "",
+    endDateFrom: "",
+    endDateTo: "",
+    remark1: "",
+    remark2: "",
+    remark3: "",
+    remark4: ""
+  });
+  const [filteredContracts, setFilteredContracts] = useState([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingContract, setEditingContract] = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
   const [refreshKey] = useState(0); // เพิ่ม state สำหรับ trigger refresh
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
-  const { token, role } = useAuth();
+  const { token, role, user, authFetch } = useAuth();
 
   // ฟังก์ชันสำหรับโหลดข้อมูลสัญญา
+  // Load departments on mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await authFetch('/api/departments', {}, token);
+        if (response.ok) {
+          const data = await response.json();
+          setDepartments(data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      } finally {
+        setLoadingDepts(false);
+      }
+    };
+    if (token) fetchDepartments();
+  }, [token]);
+
   const loadContracts = useCallback(() => {
     if (!token) return;
     
@@ -82,43 +119,80 @@ export default function ContractListPage() {
 
   const handleRowClick = id => navigate(`/contracts/${id}`);
 
-  const filtered = contracts.filter(c => {
+  // Build unique remark lists for suggestion dropdowns
+  const remarkOptions = {
+    remark1: Array.from(new Set(contracts.map(c => (c.remark1 || '').trim()).filter(Boolean))).sort(),
+    remark2: Array.from(new Set(contracts.map(c => (c.remark2 || '').trim()).filter(Boolean))).sort(),
+    remark3: Array.from(new Set(contracts.map(c => (c.remark3 || '').trim()).filter(Boolean))).sort(),
+    remark4: Array.from(new Set(contracts.map(c => (c.remark4 || '').trim()).filter(Boolean))).sort(),
+  };
+
+  const filtered = contracts.filter(contract => {
     // Case-insensitive search
-    const matchNumber = !search.number || c.contract_no?.toLowerCase().includes(search.number.toLowerCase());
-    const matchName = !search.name || c.contact_name?.toLowerCase().includes(search.name.toLowerCase());
-    const matchDepartment = !search.department || c.department?.toLowerCase().includes(search.department.toLowerCase());
+    const matchNumber = !filters.contractNo || contract.contract_no?.toLowerCase().includes(filters.contractNo.toLowerCase());
+    const matchName = !filters.contactName || contract.contact_name?.toLowerCase().includes(filters.contactName.toLowerCase());
+    const matchDepartment = filters.department === "" || contract.department === filters.department;
     
     // Status matching - handle EXPIRED specially to check actual dates
-    let matchStatus = !search.status;
-    if (search.status) {
-      if (search.status === 'EXPIRED') {
+    let matchStatus = !filters.status;
+    if (filters.status) {
+      if (filters.status === 'EXPIRED') {
         // Check if contract is expired based on end_date OR has EXPIRED/EXPIRE status
-        const isExpired = c.end_date && new Date(c.end_date) < new Date();
-        matchStatus = c.status === 'EXPIRED' || c.status === 'EXPIRE' || isExpired;
-      } else if (search.status === 'COMPLETED') {
+        const isExpired = contract.end_date && new Date(contract.end_date) < new Date();
+        matchStatus = contract.status === 'EXPIRED' || contract.status === 'EXPIRE' || isExpired;
+      } else if (filters.status === 'COMPLETED') {
         // รองรับทั้งภาษาอังกฤษและภาษาไทย
-        matchStatus = c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น';
-      } else if (search.status === 'CANCELLED') {
-        matchStatus = c.status === 'CANCELLED' || c.status === 'ยกเลิก';
-      } else if (search.status === 'DELETED') {
-        matchStatus = c.status === 'DELETED' || c.status === 'ลบแล้ว';
-      } else if (search.status === 'CRTD') {
-        matchStatus = c.status === 'CRTD' || c.status === 'สร้างใหม่';
+        matchStatus = contract.status === 'COMPLETED' || contract.status === 'เสร็จสิ้น';
+      } else if (filters.status === 'CANCELLED') {
+        matchStatus = contract.status === 'CANCELLED' || contract.status === 'ยกเลิก';
+      } else if (filters.status === 'DELETED') {
+        matchStatus = contract.status === 'DELETED' || contract.status === 'ลบแล้ว';
+      } else if (filters.status === 'CRTD') {
+        matchStatus = contract.status === 'CRTD' || contract.status === 'สร้างใหม่';
       } else {
-        matchStatus = c.status === search.status;
+        matchStatus = contract.status === filters.status;
       }
     }
     
-    // Date filtering - check both start_date and end_date fields
-    const matchStartDate = !search.start || 
-      (c.start_date && new Date(c.start_date) >= new Date(search.start)) ||
-      (c.end_date && new Date(c.end_date) >= new Date(search.start));
+    // Date Range filtering for start_date
+    let matchStartDateRange = true;
+    if (filters.startDateFrom || filters.startDateTo) {
+      if (contract.start_date) {
+        const contractStartDate = new Date(contract.start_date);
+        if (filters.startDateFrom && contractStartDate < new Date(filters.startDateFrom)) {
+          matchStartDateRange = false;
+        }
+        if (filters.startDateTo && contractStartDate > new Date(filters.startDateTo)) {
+          matchStartDateRange = false;
+        }
+      } else {
+        matchStartDateRange = false;
+      }
+    }
     
-    const matchEndDate = !search.end || 
-      (c.start_date && new Date(c.start_date) <= new Date(search.end)) ||
-      (c.end_date && new Date(c.end_date) <= new Date(search.end));
-    
-    return matchNumber && matchName && matchDepartment && matchStatus && matchStartDate && matchEndDate;
+    // Date Range filtering for end_date
+    let matchEndDateRange = true;
+    if (filters.endDateFrom || filters.endDateTo) {
+      if (contract.end_date) {
+        const contractEndDate = new Date(contract.end_date);
+        if (filters.endDateFrom && contractEndDate < new Date(filters.endDateFrom)) {
+          matchEndDateRange = false;
+        }
+        if (filters.endDateTo && contractEndDate > new Date(filters.endDateTo)) {
+          matchEndDateRange = false;
+        }
+      } else {
+        matchEndDateRange = false;
+      }
+    }
+
+    // Remark filters (case-insensitive, contains)
+    const r1 = !filters.remark1 || (contract.remark1 || '').toLowerCase().includes(filters.remark1.toLowerCase());
+    const r2 = !filters.remark2 || (contract.remark2 || '').toLowerCase().includes(filters.remark2.toLowerCase());
+    const r3 = !filters.remark3 || (contract.remark3 || '').toLowerCase().includes(filters.remark3.toLowerCase());
+    const r4 = !filters.remark4 || (contract.remark4 || '').toLowerCase().includes(filters.remark4.toLowerCase());
+
+    return matchNumber && matchName && matchDepartment && matchStatus && matchStartDateRange && matchEndDateRange && r1 && r2 && r3 && r4;
   });
 
   // Export functions
@@ -147,7 +221,7 @@ export default function ContractListPage() {
 
   // Print functions
   const handlePrintList = () => {
-    printContractsList(filtered, search);
+    printContractsList(filtered, filters);
   };
 
   const handlePrintSummary = () => {
@@ -211,12 +285,16 @@ export default function ContractListPage() {
   };
 
   const handleAddSuccess = () => {
-    setShowAdd(false);
+    setShowCreateModal(false);
     setLoading(true);
     authFetch('/api/contracts', {}, token)
       .then(async res => res.ok ? res.json() : [])
       .then(setContracts)
       .finally(() => setLoading(false));
+  };
+
+  const handleFilterChange = (e) => {
+    setFilters((prevFilters) => ({ ...prevFilters, [e.target.name]: e.target.value }));
   };
 
   return (
@@ -294,18 +372,16 @@ export default function ContractListPage() {
                 )}
               </div>
 
-              {/* Add Contract Button (Admin only) */}
-              {role === 'admin' && (
-                <button 
-                  onClick={() => setShowAdd(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  เพิ่มสัญญาใหม่
-                </button>
-              )}
+              {/* Add Contract Button (All users can add) */}
+              <button 
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                เพิ่มสัญญาใหม่
+              </button>
             </div>
           </div>
         </div>
@@ -317,56 +393,47 @@ export default function ContractListPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">เลขที่สัญญา</label>
               <input 
+                name="contractNo"
                 className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 placeholder="ค้นหาเลขที่สัญญา" 
-                value={search.number} 
-                onChange={e => setSearch(s => ({ ...s, number: e.target.value }))}
+                value={filters.contractNo} 
+                onChange={handleFilterChange}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">ชื่อ</label>
               <input 
+                name="contactName"
                 className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
                 placeholder="ค้นหาชื่อ" 
-                value={search.name} 
-                onChange={e => setSearch(s => ({ ...s, name: e.target.value }))}
+                value={filters.contactName} 
+                onChange={handleFilterChange}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">หน่วยงาน</label>
-              <input 
-                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
-                placeholder="ค้นหาหน่วยงาน" 
-                value={search.department} 
-                onChange={e => setSearch(s => ({ ...s, department: e.target.value }))}
-              />
+              <label className="block text-gray-700 font-semibold mb-1">หน่วยงาน</label>
+              <select
+                name="department"
+                value={filters.department}
+                onChange={handleFilterChange}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
+                disabled={loadingDepts}
+              >
+                <option value="">ทุกหน่วยงาน</option>
+                {departments.map(dept => (
+                  <option key={dept.code} value={dept.code}>
+                    {dept.code} - {dept.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">วันเริ่ม</label>
-              <input 
-                type="date" 
-                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
-                value={search.start} 
-                onChange={e => setSearch(s => ({ ...s, start: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">วันสิ้นสุด</label>
-              <input 
-                type="date" 
-                className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
-                value={search.end} 
-                onChange={e => setSearch(s => ({ ...s, end: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">สถานะ</label>
+              <label className="block text-gray-700 font-semibold mb-1">สถานะ</label>
               <select 
+                name="status"
                 className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
-                value={search.status} 
-                onChange={e => setSearch(s => ({ ...s, status: e.target.value }))}
+                value={filters.status} 
+                onChange={handleFilterChange}
               >
                 <option value="">ทั้งหมด</option>
                 <option value="ACTIVE">ใช้งาน (Active)</option>
@@ -378,18 +445,136 @@ export default function ContractListPage() {
                 <option value="DELETED">ลบแล้ว (Deleted)</option>
               </select>
             </div>
-            <div className="lg:col-span-3"></div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">&nbsp;</label>
-              <button 
-                onClick={() => setSearch({ number: '', name: '', department: '', start: '', end: '', status: '' })}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-200"
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                ล้างการค้นหา
-              </button>
+          </div>
+          
+          {/* Remark Filters (1-4) */}
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Remark Filter</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remark 1</label>
+                <input
+                  list="remark1-list"
+                  name="remark1"
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  placeholder="พิมพ์หรือเลือกค่า"
+                  value={filters.remark1}
+                  onChange={handleFilterChange}
+                />
+                <datalist id="remark1-list">
+                  {remarkOptions.remark1.map(v => (<option key={v} value={v} />))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remark 2</label>
+                <input
+                  list="remark2-list"
+                  name="remark2"
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  placeholder="พิมพ์หรือเลือกค่า"
+                  value={filters.remark2}
+                  onChange={handleFilterChange}
+                />
+                <datalist id="remark2-list">
+                  {remarkOptions.remark2.map(v => (<option key={v} value={v} />))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remark 3</label>
+                <input
+                  list="remark3-list"
+                  name="remark3"
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  placeholder="พิมพ์หรือเลือกค่า"
+                  value={filters.remark3}
+                  onChange={handleFilterChange}
+                />
+                <datalist id="remark3-list">
+                  {remarkOptions.remark3.map(v => (<option key={v} value={v} />))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remark 4</label>
+                <input
+                  list="remark4-list"
+                  name="remark4"
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  placeholder="พิมพ์หรือเลือกค่า"
+                  value={filters.remark4}
+                  onChange={handleFilterChange}
+                />
+                <datalist id="remark4-list">
+                  {remarkOptions.remark4.map(v => (<option key={v} value={v} />))}
+                </datalist>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Range Filters */}
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">ช่วงวันที่เริ่มสัญญา</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">จากวันที่</label>
+                <input 
+                  name="startDateFrom"
+                  type="date" 
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
+                  value={filters.startDateFrom} 
+                  onChange={handleFilterChange}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">ถึงวันที่</label>
+                <input 
+                  name="startDateTo"
+                  type="date" 
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
+                  value={filters.startDateTo} 
+                  onChange={handleFilterChange}
+                  min={filters.startDateFrom}
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">ช่วงวันที่สิ้นสุดสัญญา</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">จากวันที่</label>
+                <input 
+                  name="endDateFrom"
+                  type="date" 
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
+                  value={filters.endDateFrom} 
+                  onChange={handleFilterChange}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">ถึงวันที่</label>
+                <input 
+                  name="endDateTo"
+                  type="date" 
+                  className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200" 
+                  value={filters.endDateTo} 
+                  onChange={handleFilterChange}
+                  min={filters.endDateFrom}
+                />
+              </div>
+              <div className="lg:col-span-2"></div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">&nbsp;</label>
+                <button 
+                  onClick={() => setFilters({ contractNo: '', contactName: '', department: '', status: '', startDateFrom: '', startDateTo: '', endDateFrom: '', endDateTo: '', remark1: '', remark2: '', remark3: '', remark4: '' })}
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-200"
+                >
+                  <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  ล้างการค้นหา
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -418,6 +603,7 @@ export default function ContractListPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เลขที่สัญญา</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนงวด</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่เหลือ</th>
                   </tr>
@@ -425,7 +611,7 @@ export default function ContractListPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
+                      <td colSpan={6} className="px-6 py-12 text-center">
                         <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
@@ -449,7 +635,10 @@ export default function ContractListPage() {
                           {c.contact_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {c.department}
+                          {c.department_name || c.department || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {c.actual_period_count || c.period_count || 0} งวด
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -485,21 +674,21 @@ export default function ContractListPage() {
         )}
         
         {/* Add Contract Modal */}
-        {showAdd && (
+        {showCreateModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
               <div className="flex justify-between items-center pb-3">
                 <h3 className="text-lg font-bold text-gray-900">เพิ่มสัญญาใหม่</h3>
                 <button 
                   className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                  onClick={() => setShowAdd(false)}
+                  onClick={() => setShowCreateModal(false)}
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <AddContract onSuccess={handleAddSuccess} onClose={() => setShowAdd(false)} />
+              <AddContract onSuccess={handleAddSuccess} onClose={() => setShowCreateModal(false)} />
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import toast, { Toaster } from 'react-hot-toast';
 import { HiOutlineMail, HiOutlineExclamationCircle, HiOutlineInformationCircle } from 'react-icons/hi';
+import { useAuth } from '../AuthContext';
 
 function validateEmails(emailString) {
   if (!emailString) return true;
@@ -17,18 +18,118 @@ function validateEmails(emailString) {
   return true;
 }
 
-export default function AddContract({ initial, onSuccess, onClose }) {
-  // แปลงข้อมูลจาก backend format เป็น form format
+// Period Modal Component
+function PeriodModal({ open, onClose, onSave, initial }) {
+  const formatDateForInput = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
+  const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
+  const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
+  const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
+  const [error, setError] = useState('');
+  const inputRef = useRef();
+
+  useEffect(() => {
+    setNumber(initial?.periodNo || initial?.period_no || '');
+    setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
+    setAlertDays(initial?.alert_days ?? 0);
+    setStatus(initial?.status || 'รอดำเนินการ');
+    setError('');
+    if (open && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open, initial]);
+
+  if (!open) return null;
+
+  const handleOverlayClick = (e) => { if (e.target === e.currentTarget) onClose(); };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60] animate-fadein" onClick={handleOverlayClick}>
+      <div className="bg-white p-6 rounded-2xl shadow-xl w-80 relative animate-popin">
+        <button className="absolute right-2 top-2 text-gray-400 text-2xl hover:text-gray-600" onClick={onClose}>×</button>
+        <h3 className="font-bold mb-4 text-lg text-blue-700 flex items-center gap-2">
+          <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
+          {initial ? 'แก้ไข' : 'เพิ่ม'} งวดงาน
+        </h3>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">เลขงวด</label>
+          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="เช่น 1" />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>
+          <input type="date" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={dueDate || ''} onChange={e => setDueDate(e.target.value)} />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">แจ้งเตือนล่วงหน้า (วัน)</label>
+          <input type="number" min="0" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={alertDays} onChange={e => setAlertDays(Number(e.target.value))} placeholder="0 = ไม่แจ้งเตือน" />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">สถานะ</label>
+          <select className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="รอดำเนินการ">รอดำเนินการ</option>
+            <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+            <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+          </select>
+        </div>
+        {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
+        <div className="flex gap-2 mt-4">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={() => {
+            if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
+            const saveData = { 
+              period_no: Number(number), 
+              due_date: dueDate, 
+              alert_days: alertDays, 
+              status,
+              id: initial?.id || `temp_${Date.now()}`
+            };
+            onSave(saveData);
+          }}>
+            บันทึก
+          </button>
+          <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={onClose}>ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AddContract({ isOpen, onClose, onSuccess, initial, token, mode = 'create' }) {
+  const { authFetch, user } = useAuth();
+  const { role } = user || {};
+  const userDepartment = user?.department || user?.department_id; // Try both fields
+  const [departments, setDepartments] = useState([]);
+  const [loadingDepts, setLoadingDepts] = useState(true);
+  const [emailError, setEmailError] = useState("");
+  const [formError, setFormError] = useState({ contactName: '', department: '' });
+  const [showCustomDept, setShowCustomDept] = useState(false);
+  const [customDepartment, setCustomDepartment] = useState("");
+  const [periods, setPeriods] = useState([]);
+  const [showPeriodModal, setShowPeriodModal] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState(null);
+  
+  // Get contract ID from initial data when editing
+  const contractId = initial?.id || initial?.contract_id;
+
+  // ฟังก์ชันสำหรับตั้งค่า initial form data
   const getInitialFormData = () => {
+    // ถ้าไม่มี initial data ให้ return ค่าว่าง
     if (!initial) {
       return {
         contractNo: "",
         contractDate: "",
         contactName: "",
-        department: "",
+        department: role !== 'admin' && userDepartment ? userDepartment : "", // ถ้าเป็น user ใช้แผนกของตัวเอง
         startDate: "",
         endDate: "",
-        periodCount: "",
         remark1: "",
         remark2: "",
         remark3: "",
@@ -39,19 +140,18 @@ export default function AddContract({ initial, onSuccess, onClose }) {
     }
     
     // แปลงวันที่จาก backend format เป็น input date format
-    const formatDate = (dateStr) => {
+    const formatDateForInput = (dateStr) => {
       if (!dateStr) return "";
       return dateStr.split('T')[0];
     };
     
     return {
       contractNo: initial.contract_no || initial.contractNo || "",
-      contractDate: formatDate(initial.contract_date || initial.contractDate) || "",
+      contractDate: formatDateForInput(initial.contract_date || initial.contractDate) || "",
       contactName: initial.contact_name || initial.contactName || "",
       department: initial.department || "",
-      startDate: formatDate(initial.start_date || initial.startDate) || "",
-      endDate: formatDate(initial.end_date || initial.endDate) || "",
-      periodCount: String(initial.period_count || initial.periodCount || ""),
+      startDate: formatDateForInput(initial.start_date || initial.startDate) || "",
+      endDate: formatDateForInput(initial.end_date || initial.endDate) || "",
       remark1: initial.remark1 || "",
       remark2: initial.remark2 || "",
       remark3: initial.remark3 || "",
@@ -61,9 +161,89 @@ export default function AddContract({ initial, onSuccess, onClose }) {
     };
   };
   
-  const [form, setForm] = useState(getInitialFormData());
-  const [emailError, setEmailError] = useState("");
-  const [formError, setFormError] = useState({ contactName: '', department: '' });
+  const [form, setForm] = useState(() => getInitialFormData());
+  
+  // Load departments on mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5005/api/settings/departments', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Departments loaded:', data);
+          // Check if data is an array or has a data property
+          const deptList = Array.isArray(data) ? data : (data.data || data.departments || []);
+          setDepartments(deptList);
+        } else {
+          console.error('Failed to fetch departments:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      } finally {
+        setLoadingDepts(false);
+      }
+    };
+    fetchDepartments();
+  }, []);
+  
+  // Load existing periods when editing
+  useEffect(() => {
+    const loadPeriods = async () => {
+      if (contractId && initial) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await authFetch(`/api/contracts/${contractId}/periods`, {}, token);
+          if (response.ok) {
+            const data = await response.json();
+            // Convert periods to format expected by our component
+            const formattedPeriods = data.map(p => ({
+              id: `period-${p.id}`,
+              period_no: p.period_no,
+              due_date: p.due_date ? p.due_date.split('T')[0] : '',
+              alert_days: p.alert_days || 0,
+              status: p.status || 'รอดำเนินการ'
+            }));
+            setPeriods(formattedPeriods);
+          }
+        } catch (error) {
+          console.error('Error loading periods:', error);
+        }
+      }
+    };
+    
+    loadPeriods();
+  }, [contractId, initial]);
+  
+  // Check if department is custom after departments are loaded
+  useEffect(() => {
+    if (initial && initial.department && departments.length > 0) {
+      const deptExists = departments.some(d => d.code === initial.department);
+      if (!deptExists && initial.department !== '') {
+        // This is a custom department
+        setShowCustomDept(true);
+        setCustomDepartment(initial.department);
+        setForm(prev => ({ ...prev, department: 'OTHER' }));
+      } else if (deptExists) {
+        // This is a standard department from the list
+        setForm(prev => ({ ...prev, department: initial.department }));
+      }
+    }
+  }, [initial, departments]);
+
+  // ฟังก์ชันแปลงวันที่
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -78,7 +258,36 @@ export default function AddContract({ initial, onSuccess, onClose }) {
     if (name === 'contactName' && value.trim() !== '') {
       setFormError(err => ({ ...err, contactName: '' }));
     }
-    if (name === 'department' && value.trim() !== '') {
+    if (name === 'department') {
+      if (value === 'OTHER') {
+        setShowCustomDept(true);
+        setForm({ ...form, department: 'OTHER' }); // Keep OTHER as value for validation
+      } else {
+        setShowCustomDept(false);
+        setCustomDepartment(''); // Clear custom department when switching back
+        setForm({ ...form, department: value });
+        const deptStr = String(value).trim();
+        if (deptStr !== '') {
+          setFormError(err => ({ ...err, department: '' }));
+        }
+      }
+    } else {
+      setForm({ ...form, [name]: value });
+    }
+    if (name === 'alertEmails') {
+      if (!validateEmails(value)) {
+        setEmailError('รูปแบบอีเมลไม่ถูกต้อง: ห้ามเว้นวรรค, ห้าม comma ติดกัน, ห้ามซ้ำ, ห้ามว่าง, คั่นด้วย comma (,)');
+      } else {
+        setEmailError("");
+      }
+    }
+  };
+
+  const handleCustomDeptChange = (e) => {
+    const value = e.target.value;
+    setCustomDepartment(value);
+    // Keep form.department as 'OTHER' for validation
+    if (value.trim() !== '') {
       setFormError(err => ({ ...err, department: '' }));
     }
   };
@@ -91,7 +300,13 @@ export default function AddContract({ initial, onSuccess, onClose }) {
       newError.contactName = 'กรุณากรอกชื่อสัญญา';
       hasError = true;
     }
-    if (!form.department || form.department.trim() === '') {
+    // ตรวจสอบหน่วยงาน
+    const deptValue = form.department ? String(form.department).trim() : '';
+    if (!showCustomDept && (!deptValue || deptValue === '' || deptValue === 'OTHER')) {
+      newError.department = 'กรุณาเลือกหน่วยงาน';
+      hasError = true;
+    }
+    if (showCustomDept && !customDepartment.trim()) {
       newError.department = 'กรุณากรอกหน่วยงาน';
       hasError = true;
     }
@@ -110,16 +325,16 @@ export default function AddContract({ initial, onSuccess, onClose }) {
       contract_no: form.contractNo,
       contract_date: form.contractDate,
       contact_name: form.contactName,
-      department: form.department,
+      department: role === 'admin' && showCustomDept ? customDepartment : (role !== 'admin' ? userDepartment : form.department), // user ใช้แผนกตัวเอง, admin ใช้ที่เลือก
       start_date: form.startDate,
       end_date: form.endDate,
-      period_count: form.periodCount ? parseInt(form.periodCount) : null,
       remark1: form.remark1,
       remark2: form.remark2,
       remark3: form.remark3,
       remark4: form.remark4,
       alert_emails: form.alertEmails ? form.alertEmails.split(',').map(e => e.trim()).filter(e => e !== '').join(', ') : '',
-      status: form.status
+      status: form.status,
+      periods: periods // Include periods in payload
     };
     
     let res;
@@ -200,15 +415,40 @@ export default function AddContract({ initial, onSuccess, onClose }) {
           </div>
           <div>
             <label className="block font-semibold mb-1">หน่วยงาน <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              name="department"
-              value={form.department}
-              onChange={handleChange}
-              className={`w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition ${formError.department ? 'border-red-500' : ''}`}
-              placeholder="เช่น HR, IT, ..."
-              required
-            />
+            {role === 'admin' ? (
+              <select
+                name="department"
+                value={form.department}
+                onChange={handleChange}
+                className={`w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition ${formError.department ? 'border-red-500' : ''}`}
+                disabled={loadingDepts}
+              >
+                <option value="">-- เลือกหน่วยงาน --</option>
+                {departments.map(dept => (
+                  <option key={dept.code || dept.id} value={dept.code}>
+                    {dept.name || dept.department_name || `${dept.code}`}
+                  </option>
+                ))}
+                <option value="OTHER">อื่นๆ (กรอกเอง)</option>
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={userDepartment || form.department || ''}
+                className="w-full border px-3 py-2 rounded-lg bg-gray-100 cursor-not-allowed"
+                disabled
+                readOnly
+              />
+            )}
+            {role === 'admin' && showCustomDept && (
+              <input
+                type="text"
+                value={customDepartment}
+                onChange={handleCustomDeptChange}
+                className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition mt-2"
+                placeholder="กรอกหน่วยงานที่เกี่ยวข้อง"
+              />
+            )}
             {formError.department && <div className="text-red-500 text-sm mt-1">{formError.department}</div>}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -234,16 +474,49 @@ export default function AddContract({ initial, onSuccess, onClose }) {
             </div>
           </div>
           <div>
-            <label className="block font-semibold mb-1">จำนวนงวด</label>
-            <input
-              type="number"
-              name="periodCount"
-              value={form.periodCount}
-              onChange={handleChange}
-              className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
-              min={1}
-              placeholder="จำนวนงวดงาน"
-            />
+            <label className="block font-semibold mb-1">งวดงาน ({periods.length} งวด)</label>
+            <div className="border rounded-lg p-3">
+              {periods.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {periods.map((period, idx) => (
+                    <div key={period.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                      <span className="text-sm">งวดที่ {period.period_no} - {period.due_date}</span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPeriod(period);
+                            setShowPeriodModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPeriods(periods.filter(p => p.id !== period.id))}
+                          className="text-red-600 hover:text-red-700 text-sm"
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm mb-3">ยังไม่มีงวดงาน</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingPeriod(null);
+                  setShowPeriodModal(true);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-sm font-semibold"
+              >
+                + เพิ่มงวดงาน
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -344,6 +617,24 @@ export default function AddContract({ initial, onSuccess, onClose }) {
           <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold shadow transition flex-1" type="button" onClick={onClose}>ยกเลิก</button>
         </div>
       </div>
+      {/* Period Modal */}
+      <PeriodModal
+        open={showPeriodModal}
+        onClose={() => {
+          setShowPeriodModal(false);
+          setEditingPeriod(null);
+        }}
+        onSave={(periodData) => {
+          if (editingPeriod) {
+            setPeriods(periods.map(p => p.id === editingPeriod.id ? periodData : p));
+          } else {
+            setPeriods([...periods, periodData]);
+          }
+          setShowPeriodModal(false);
+          setEditingPeriod(null);
+        }}
+        initial={editingPeriod}
+      />
     </div>
   );
 }

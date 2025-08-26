@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import { useAuth, authFetch } from '../AuthContext';
+import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
 import { getAuthMethodBadge, getAuthMethodDisplay } from '../utils/jwtUtils';
+import { useNavigate } from 'react-router-dom';
 
 export default function SettingsPage() {
-  const { token, user, role } = useAuth();
+  const navigate = useNavigate();
+  const { user, token, authFetch, role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   

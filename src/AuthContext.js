@@ -49,8 +49,23 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('authMethod');
   };
 
+  const authFetch = async (url, options = {}) => {
+    const headers = {
+      ...(options.headers || {})
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return fetch(url, {
+      ...options,
+      headers
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ token, user, role, authMethod, login, logout }}>
+    <AuthContext.Provider value={{ token, user, role, authMethod, login, logout, authFetch }}>
       {children}
     </AuthContext.Provider>
   );
@@ -59,14 +74,3 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-
-// Helper fetch ที่แนบ token อัตโนมัติ
-export async function authFetch(url, options = {}, token) {
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: token ? `Bearer ${token}` : undefined,
-    },
-  });
-} 

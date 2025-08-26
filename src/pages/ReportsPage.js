@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import { useAuth, authFetch } from '../AuthContext';
+import { useAuth } from '../AuthContext';
 import { exportSummaryToCSV, generateSummaryReport } from '../utils/exportUtils';
 import { printSummaryReport } from '../utils/printUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function ReportsPage() {
-  const { token } = useAuth();
+  const navigate = useNavigate();
+  const { user, authFetch, role } = useAuth();
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -34,8 +36,8 @@ export default function ReportsPage() {
       setLoading(true);
       
       const [contractsRes, periodsRes] = await Promise.all([
-        authFetch('/api/contracts', {}, token),
-        authFetch('/api/periods', {}, token)
+        authFetch('/api/contracts'),
+        authFetch('/api/periods')
       ]);
 
       if (contractsRes.ok) {
@@ -59,9 +61,19 @@ export default function ReportsPage() {
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     
-    // Use all contracts and periods (don't filter by date for now to see all data)
-    const filteredContracts = contracts;
-    const filteredPeriods = periods;
+    // Filter contracts by department for regular users
+    let filteredContracts = contracts;
+    if (role !== 'admin') {
+      // Regular users see only their department's contracts
+      filteredContracts = contracts.filter(contract => 
+        contract.department === role || 
+        contract.department_name === role
+      );
+    }
+    
+    // Filter periods for the filtered contracts
+    const contractIds = filteredContracts.map(c => c.id);
+    const filteredPeriods = periods.filter(p => contractIds.includes(p.contract_id));
     
     
     // Generate statistics with correct status values

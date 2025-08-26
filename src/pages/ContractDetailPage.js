@@ -1,14 +1,27 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { authFetch, useAuth } from '../AuthContext';
+import { useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import AddContract from '../components/AddContract';
 import { printContract } from '../utils/printUtils';
 import toast from 'react-hot-toast';
 
 function PeriodModal({ open, onClose, onSave, initial }) {
+  // Helper function to format date from ISO to yyyy-MM-dd
+  const formatDateForInput = (dateStr) => {
+    if (!dateStr) return '';
+    // If already in yyyy-MM-dd format, return as is
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+    // Convert ISO date to yyyy-MM-dd
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
-  const [dueDate, setDueDate] = useState(initial?.dueDate || initial?.due_date || '');
+  const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
   const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
   const [error, setError] = useState('');
@@ -16,7 +29,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 
   useEffect(() => {
     setNumber(initial?.periodNo || initial?.period_no || '');
-    setDueDate(initial?.dueDate || initial?.due_date || '');
+    setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
     setAlertDays(initial?.alert_days ?? 0);
     setStatus(initial?.status || 'รอดำเนินการ');
     setError('');
@@ -45,7 +58,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
         </div>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>
-          <input type="date" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={dueDate} onChange={e => setDueDate(e.target.value)} placeholder="เลือกวันที่" aria-label="วันที่กำหนดส่ง" />
+          <input type="date" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={dueDate || ''} onChange={e => setDueDate(e.target.value)} placeholder="เลือกวันที่" aria-label="วันที่กำหนดส่ง" />
         </div>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">แจ้งเตือนล่วงหน้า (วัน)</label>
@@ -69,7 +82,12 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1 flex items-center justify-center gap-1" onClick={() => {
             if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
             // ส่ง id กลับไปด้วยถ้าเป็นการแก้ไข
-            const saveData = { periodNo: Number(number), dueDate, alert_days: alertDays, status };
+            const saveData = { 
+              period_no: Number(number), 
+              due_date: dueDate, 
+              alert_days: alertDays, 
+              status 
+            };
             if (initial?.id) saveData.id = initial.id;
             onSave(saveData);
           }} aria-label="บันทึก">
@@ -116,6 +134,10 @@ function AlertDaysCell({ days }) {
 
 export default function ContractDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { token, user, authFetch } = useAuth();
+  const role = user?.role; // Extract role from user object
+  const department = user?.department || user?.department_id; // Extract department from user object (try both fields)
   const [contract, setContract] = useState(null);
   const [files, setFiles] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -126,28 +148,27 @@ export default function ContractDetailPage() {
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [uploading, setUploading] = useState(false);
   const [periodModal, setPeriodModal] = useState({ open: false, initial: null });
-  const [periodMsg, setPeriodMsg] = useState('');
+  const [periodLoading, setPeriodLoading] = useState(false);
   const [periodError, setPeriodError] = useState('');
+  const [periodMsg, setPeriodMsg] = useState('');
   const fileInputRef = useRef();
-  const navigate = useNavigate();
-  const { token, role } = useAuth();
-  const [showEdit, setShowEdit] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState("");
   const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      authFetch(`/api/contracts/${id}`, {}, token).then(async res => {
+      authFetch(`/api/contracts/${id}`).then(async res => {
         if (res.status === 401) throw new Error('Session หมดอายุ');
         if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
         return res.json();
       }),
-      authFetch(`/api/contracts/${id}/files`, {}, token).then(async res => {
+      authFetch(`/api/contracts/${id}/files`).then(async res => {
         if (!res.ok) return [];
         return res.json();
       }),
-      authFetch(`/api/contracts/${id}/periods`, {}, token).then(async res => {
+      authFetch(`/api/contracts/${id}/periods`).then(async res => {
         if (!res.ok) return [];
         return res.json();
       })
@@ -163,7 +184,7 @@ export default function ContractDetailPage() {
 
   const refreshFiles = async () => {
     setFileLoading(true);
-    const res = await authFetch(`/api/contracts/${id}/files`, {}, token);
+    const res = await authFetch(`/api/contracts/${id}/files`);
     if (res.ok) setFiles(await res.json());
     setFileLoading(false);
   };
@@ -171,7 +192,7 @@ export default function ContractDetailPage() {
   const handleDeleteFile = async (fileId) => {
     if (!window.confirm('ยืนยันการลบไฟล์นี้?')) return;
     setFileLoading(true);
-    const res = await authFetch(`/api/contracts/${id}/files/${fileId}`, { method: 'DELETE' }, token);
+    const res = await authFetch(`/api/contracts/${id}/files/${fileId}`, { method: 'DELETE' });
     if (res.ok) {
       toast.success('ลบไฟล์สำเร็จ');
       await refreshFiles();
@@ -215,7 +236,7 @@ export default function ContractDetailPage() {
   };
 
   const refreshPeriods = async () => {
-    const res = await authFetch(`/api/contracts/${id}/periods`, {}, token);
+    const res = await authFetch(`/api/contracts/${id}/periods`);
     if (res.ok) setPeriods(await res.json());
   };
 
@@ -224,8 +245,7 @@ export default function ContractDetailPage() {
   const handleDeletePeriod = async (periodId) => {
     if (!window.confirm('ยืนยันการลบงวดงานนี้?')) return;
     setPeriodMsg(''); setPeriodError('');
-    // ใช้ endpoint DELETE /api/contracts/periods/:id
-    const res = await authFetch(`/api/contracts/periods/${periodId}`, { method: 'DELETE' }, token);
+    const res = await authFetch(`/api/contracts/${id}/periods/${periodId}`, { method: 'DELETE' });
     if (res.ok) {
       toast.success('ลบงวดงานสำเร็จ');
       await refreshPeriods();
@@ -238,7 +258,7 @@ export default function ContractDetailPage() {
     const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
     const isEdit = !!periodId;
     const method = isEdit ? 'PUT' : 'POST';
-    const url = isEdit ? `/api/periods/${periodId}` : `/api/contracts/${id}/periods`;
+    const url = isEdit ? `/api/contracts/${id}/periods/${periodId}` : `/api/contracts/${id}/periods`;
     if (data.alert_days === undefined || data.alert_days === null) {
       toast.error('กรุณากรอกจำนวนวันแจ้งเตือนล่วงหน้า');
       return;
@@ -255,7 +275,8 @@ export default function ContractDetailPage() {
       setPeriodModal({ open: false, initial: null });
       await refreshPeriods();
     } else {
-      toast.error('บันทึกงวดงานไม่สำเร็จ');
+      const error = await res.json().catch(() => ({}));
+      toast.error(error.error || 'บันทึกงวดงานไม่สำเร็จ');
     }
   };
 
@@ -270,10 +291,22 @@ export default function ContractDetailPage() {
     setPeriodError('');
     
     try {
-      const res = await authFetch(`/api/periods/${periodId}`, {
+      // Find the period to get its current data
+      const period = periods.find(p => p.id === periodId);
+      if (!period) {
+        toast.error('ไม่พบข้อมูลงวดงาน');
+        return;
+      }
+      
+      const res = await authFetch(`/api/contracts/${id}/periods/${periodId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ 
+          period_no: period.period_no,
+          due_date: period.due_date,
+          alert_days: period.alert_days || 0,
+          status: newStatus 
+        })
       }, token);
       
       if (res.ok) {
@@ -281,7 +314,7 @@ export default function ContractDetailPage() {
         await refreshPeriods();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        toast.error(errorData.message || 'อัปเดตสถานะไม่สำเร็จ');
+        toast.error(errorData.error || 'อัปเดตสถานะไม่สำเร็จ');
       }
     } catch (error) {
       console.error('Error updating period status:', error);
@@ -290,7 +323,7 @@ export default function ContractDetailPage() {
   };
 
   const refreshContract = async () => {
-    const res = await authFetch(`/api/contracts/${id}`, {}, token);
+    const res = await authFetch(`/api/contracts/${id}`);
     if (res.ok) setContract(await res.json());
   };
 
@@ -298,22 +331,31 @@ export default function ContractDetailPage() {
   if (error) return <div className="text-red-600 font-semibold text-center py-6">{error}</div>;
   if (!contract) return <div className="text-gray-400 text-center py-10">ไม่พบข้อมูล</div>;
 
-  const handleEdit = () => setShowEdit(true);
+  const handleEdit = () => setShowEditModal(true);
   const handleDelete = async () => {
     if (!window.confirm('ยืนยันการลบสัญญานี้?')) return;
     setDeleteMsg(""); setDeleteError("");
-    const res = await authFetch(`/api/contracts/${id}`, { method: 'DELETE' }, token);
-    if (res.ok) {
-      toast.success('ลบสัญญาสำเร็จ');
-      setTimeout(() => { navigate('/contracts'); }, 1000);
-    } else {
-      toast.error('ลบสัญญาไม่สำเร็จ');
+    try {
+      const res = await authFetch(`/api/contracts/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('ลบสัญญาสำเร็จ');
+        setTimeout(() => { navigate('/contracts'); }, 1000);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || 'ลบสัญญาไม่สำเร็จ');
+        console.error('Delete error:', errorData);
+      }
+    } catch (error) {
+      console.error('Delete request error:', error);
+      toast.error('เกิดข้อผิดพลาดในการลบสัญญา');
     }
   };
 
   const handlePrint = () => {
     printContract(contract, periods);
   };
+
+  const isLocked = contract && (contract.status === 'EXPIRED' || contract.status === 'DELETED');
 
   return (
     <Layout>
@@ -360,7 +402,7 @@ export default function ContractDetailPage() {
                 </svg>
                 พิมพ์
               </button>
-              {role === 'admin' && (
+              {(role === 'admin' || (department && (contract.department === department || contract.department_id === department))) && (
                 <>
                   <button 
                     onClick={handleEdit} 
@@ -437,6 +479,17 @@ export default function ContractDetailPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3">
+                <div className="p-1 bg-purple-100 rounded">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">จำนวนงวด</p>
+                  <p className="text-lg font-semibold text-gray-900">{periods.length || 0} งวด</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
                 <div className="p-1 bg-green-100 rounded">
                   <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -459,81 +512,93 @@ export default function ContractDetailPage() {
         </div>
         {/* File Upload Section */}
         {role === 'admin' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          <div className="bg-white shadow-sm rounded-xl p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">ไฟล์แนบ</h2>
+            {isLocked && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-yellow-600">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                 </svg>
+                <span className="text-sm text-yellow-800">สัญญานี้ถูกล็อคเนื่องจากมีสถานะ {contract.status} ไม่สามารถแก้ไขหรือเพิ่มไฟล์ได้</span>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">อัปโหลดไฟล์</h2>
-            </div>
-            <form onSubmit={handleUpload} className="flex items-center gap-4">
-              <div className="flex-1">
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  multiple 
-                  accept="*" 
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg p-2"
-                />
+            )}
+            {!isLocked && (
+              <form onSubmit={handleUpload} className="mb-4">
+                <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xlsx,.xls,.jpg,.jpeg,.png"
+                    className="flex-1 border border-gray-300 rounded-lg p-2"
+                  />
+                  <button
+                    type="submit"
+                    disabled={uploading}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors duration-200"
+                  >
+                    {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดไฟล์'}
+                  </button>
+                </div>
+              </form>
+            )}
+            
+            {uploadError && <div className="text-red-600 mb-2 font-semibold">{uploadError}</div>}
+            {uploadSuccess && <div className="text-green-600 mb-2 font-semibold">{uploadSuccess}</div>}
+            
+            {fileLoading ? (
+              <div className="flex justify-center py-4">
+                <span className="animate-spin inline-block w-6 h-6 border-4 border-blue-400 border-t-white rounded-full"></span>
               </div>
-              <button 
-                type="submit" 
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <>
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    กำลังอัปโหลด...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    อัปโหลดไฟล์
-                  </>
-                )}
-              </button>
-            </form>
+            ) : files.length === 0 ? (
+              <div className="text-gray-400">ไม่มีไฟล์แนบ</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-2 text-left font-medium text-gray-700">ชื่อไฟล์</th>
+                      <th className="px-4 py-2 text-center font-medium text-gray-700">ดาวน์โหลด</th>
+                      {!isLocked && (
+                        <th className="px-4 py-2 text-center font-medium text-gray-700">ลบ</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {files.map(file => (
+                      <tr key={file.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3">{file.filename}</td>
+                        <td className="px-4 py-3 text-center">
+                          <a 
+                            href={`/${file.path}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            ดาวน์โหลด
+                          </a>
+                        </td>
+                        {!isLocked && (
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => handleDeleteFile(file.id)}
+                              className="text-red-600 hover:text-red-800 transition-colors duration-200"
+                              title="ลบไฟล์"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
-      {/* แจ้งเตือนอัปโหลด/ลบ/แก้ไข */}
-      {uploadError && <div className="text-red-600 mb-2 font-semibold">{uploadError}</div>}
-      {uploadSuccess && <div className="text-green-600 mb-2 font-semibold">{uploadSuccess}</div>}
-      {deleteMsg && <div className="text-green-600 mb-2 font-semibold">{deleteMsg}</div>}
-      {deleteError && <div className="text-red-600 mb-2 font-semibold">{deleteError}</div>}
-      {/* ไฟล์แนบ */}
-      <div className="mb-8">
-        <h3 className="font-bold mb-2 text-blue-700">ไฟล์แนบ</h3>
-        {fileLoading ? <div className="flex justify-center py-4"><span className="animate-spin inline-block w-6 h-6 border-4 border-blue-400 border-t-white rounded-full"></span></div> : files.length === 0 ? <div className="text-gray-400">ไม่มีไฟล์แนบ</div> : (
-          <div className="overflow-x-auto rounded-xl shadow">
-            <table className="w-full text-sm md:text-base">
-              <thead>
-                <tr className="bg-blue-100 text-blue-800">
-                  <th className="p-3 font-bold">ชื่อไฟล์</th>
-                  <th className="p-3 font-bold">ดาวน์โหลด</th>
-                  {role === 'admin' && <th className="p-3 font-bold">ลบ</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {files.map(f => (
-                  <tr key={f.id} className="hover:bg-blue-50 transition">
-                    <td className="p-3 border-b">{f.filename}</td>
-                    <td className="p-3 border-b"><a href={`/${f.path}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Download</a></td>
-                    {role === 'admin' && <td className="p-3 border-b"><button className="text-red-600 underline" onClick={() => handleDeleteFile(f.id)}>ลบ</button></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
       {/* งวดงาน */}
       <div className="mb-8">
         <h3 className="font-bold mb-2 text-blue-700">งวดงาน</h3>
@@ -609,11 +674,11 @@ export default function ContractDetailPage() {
         )}
         <PeriodModal open={periodModal.open} onClose={() => setPeriodModal({ open: false, initial: null })} onSave={handleSavePeriod} initial={periodModal.initial} />
       </div>
-      {showEdit && (
+      {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-xl relative">
-            <button className="absolute right-2 top-2 text-gray-400 text-2xl" onClick={() => setShowEdit(false)}>×</button>
-            <AddContract initial={contract} onSuccess={async () => { setShowEdit(false); await refreshContract(); }} onClose={() => setShowEdit(false)} />
+            <button className="absolute right-2 top-2 text-gray-400 text-2xl" onClick={() => setShowEditModal(false)}>×</button>
+            <AddContract initial={contract} onSuccess={async () => { setShowEditModal(false); await refreshContract(); }} onClose={() => setShowEditModal(false)} />
           </div>
         </div>
       )}

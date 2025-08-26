@@ -72,6 +72,20 @@ export default function Layout({ children }) {
     }
   ];
 
+  // เพิ่มเมนูจัดการแผนกสำหรับ Admin
+  if (user?.role === 'admin') {
+    navigation.splice(4, 0, {
+      name: 'จัดการแผนก',
+      path: '/departments',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+      current: location.pathname === '/departments'
+    });
+  }
+
   if (!token) {
     return <div className="min-h-screen bg-gray-50">{children}</div>;
   }
@@ -142,7 +156,20 @@ export default function Layout({ children }) {
                       );
                     })()}
                   </div>
-                  <p className="text-gray-500 capitalize">{role}</p>
+                  <p className="text-gray-500">
+                    {role === 'admin' ? (
+                      <span className="text-red-600 font-medium">ผู้ดูแลระบบ</span>
+                    ) : role !== 'admin' && role !== 'user' ? (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {role}
+                      </span>
+                    ) : (
+                      <span className="capitalize">{role}</span>
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -205,8 +232,10 @@ export default function Layout({ children }) {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <div className="text-base font-medium text-gray-800">ผู้ใช้งาน</div>
-                    <div className="text-sm text-gray-500 capitalize">{role}</div>
+                    <div className="text-base font-medium text-gray-800">{user?.username || 'ผู้ใช้งาน'}</div>
+                    <div className="text-sm text-gray-500">
+                      {role === 'admin' ? 'ผู้ดูแลระบบ' : role}
+                    </div>
                   </div>
                 </div>
               </div>

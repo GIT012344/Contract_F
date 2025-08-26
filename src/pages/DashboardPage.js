@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authFetch, useAuth } from '../AuthContext';
+import { useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
+  const { user, authFetch, token, role } = useAuth();
   const [stats, setStats] = useState({
     totalContracts: 0,
     activeContracts: 0,
@@ -16,12 +18,8 @@ export default function DashboardPage() {
     pendingPeriods: 0,
     inProgressPeriods: 0,
     completedPeriods: 0,
-    overduePeriods: 0,
-    upcomingDeadlines: []
   });
   const [loading, setLoading] = useState(true);
-  const { token, role } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
