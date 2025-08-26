@@ -89,7 +89,8 @@ export default function RegisterPage() {
         adminPin: formData.role === 'admin' ? formData.adminPin : undefined
       };
 
-      const res = await fetch('/api/users/register', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
+      const res = await fetch(`${apiUrl}/api/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registerData),
