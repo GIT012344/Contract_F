@@ -18,6 +18,8 @@ export default function DashboardPage() {
     pendingPeriods: 0,
     inProgressPeriods: 0,
     completedPeriods: 0,
+    upcomingDeadlines: [],
+    recentContracts: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -94,6 +96,25 @@ export default function DashboardPage() {
           return map;
         }, {});
         
+        // Get upcoming deadlines (next 30 days)
+        const upcomingDeadlines = allPeriods
+          .filter(period => {
+            const dueDate = new Date(period.due_date);
+            const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            return daysDiff >= 0 && daysDiff <= 30 && period.status !== 'completed';
+          })
+          .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+          .slice(0, 5)
+          .map(period => ({
+            ...period,
+            contract_title: contractsMap[period.contract_id]?.title || 'ไม่ระบุชื่อสัญญา'
+          }));
+        
+        // Get recent contracts (last 5)
+        const recentContracts = contracts
+          .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+          .slice(0, 5);
+        
         
         // Helper function to get contract title from various possible field names
         const getContractTitle = (contract) => {
@@ -162,12 +183,12 @@ export default function DashboardPage() {
           cancelledContracts,
           pendingContracts,
           expiredContracts,
-          totalPeriods,
-          pendingPeriods,
-          inProgressPeriods,
-          completedPeriods,
-          overduePeriods,
-          upcomingDeadlines
+          totalPeriods: allPeriods.length,
+          pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
+          inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
+          completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
+          upcomingDeadlines,
+          recentContracts
         });
       }
     } catch (error) {

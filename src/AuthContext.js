@@ -58,7 +58,10 @@ export function AuthProvider({ children }) {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    return fetch(url, {
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
+    const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
+    
+    return fetch(fullUrl, {
       ...options,
       headers
     });
