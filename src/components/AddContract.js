@@ -102,9 +102,9 @@ function PeriodModal({ open, onClose, onSave, initial }) {
   );
 }
 
-export default function AddContract({ isOpen, onClose, onSuccess, initial, token, mode = 'create' }) {
-  const { authFetch, user } = useAuth();
-  const { role } = user || {};
+export default function AddContract({ onSuccess, onClose, initial }) {
+  const { authFetch, user, token } = useAuth();  
+  const role = user?.role;
   const userDepartment = user?.department || user?.department_id; // Try both fields
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
@@ -191,8 +191,7 @@ export default function AddContract({ isOpen, onClose, onSuccess, initial, token
     const loadPeriods = async () => {
       if (contractId && initial) {
         try {
-          const token = localStorage.getItem('token');
-          const response = await authFetch(`/api/contracts/${contractId}/periods`, {}, token);
+          const response = await authFetch(`/api/contracts/${contractId}/periods`);
           if (response.ok) {
             const data = await response.json();
             // Convert periods to format expected by our component
@@ -312,7 +311,6 @@ export default function AddContract({ isOpen, onClose, onSuccess, initial, token
       setEmailError('รูปแบบอีเมลไม่ถูกต้อง: ห้ามเว้นวรรค, ห้าม comma ติดกัน, ห้ามซ้ำ, ห้ามว่าง, คั่นด้วย comma (,)');
       return;
     }
-    const token = localStorage.getItem('token');
     const isEdit = !!initial;
     
     // แปลงข้อมูลจาก camelCase เป็น snake_case สำหรับ backend
@@ -334,11 +332,10 @@ export default function AddContract({ isOpen, onClose, onSuccess, initial, token
     
     let res;
     try {
-      res = await fetch(isEdit ? `/api/contracts/${initial.id}` : '/api/contracts', {
+      res = await authFetch(isEdit ? `/api/contracts/${initial.id}` : '/api/contracts', {
         method: isEdit ? 'PUT' : 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload),
       });
@@ -599,6 +596,7 @@ export default function AddContract({ isOpen, onClose, onSuccess, initial, token
               className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
             >
               <option value="CRTD">สร้างใหม่</option>
+              <option value="PENDING">รอดำเนินการ</option>
               <option value="ACTIVE">ใช้งาน</option>
               <option value="COMPLETED">เสร็จสิ้น</option>
               <option value="CANCELLED">ยกเลิก</option>

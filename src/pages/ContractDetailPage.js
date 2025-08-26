@@ -156,6 +156,26 @@ export default function ContractDetailPage() {
   const [deleteMsg, setDeleteMsg] = useState("");
   const [deleteError, setDeleteError] = useState("");
 
+  const handleDeleteContract = async () => {
+    if (!window.confirm('คุณแน่ใจหรือไม่ที่จะลบสัญญานี้?')) {
+      return;
+    }
+    try {
+      const response = await authFetch(`/api/contracts/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        alert('ลบสัญญาเรียบร้อยแล้ว');
+        navigate('/contracts');
+      } else {
+        const error = await response.text();
+        alert('ไม่สามารถลบสัญญาได้: ' + error);
+      }
+    } catch (error) {
+      alert('เกิดข้อผิดพลาดในการลบสัญญา');
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -250,9 +270,27 @@ export default function ContractDetailPage() {
       toast.success('ลบงวดงานสำเร็จ');
       await refreshPeriods();
     } else {
-      toast.error('ลบงวดงานไม่สำเร็จ');
+      const error = await res.text();
+      toast.error(error || 'ไม่สามารถลบงวดงานได้');
     }
   };
+
+  const handleCompletePeriod = async (periodId) => {
+    if (!window.confirm('ยืนยันการทำเครื่องหมายงวดงานนี้เป็นเสร็จสิ้น?')) return;
+    const res = await authFetch(`/api/contracts/${id}/periods/${periodId}/complete`, { 
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'COMPLETED' })
+    });
+    if (res.ok) {
+      toast.success('อัพเดทสถานะงวดงานสำเร็จ');
+      await refreshPeriods();
+    } else {
+      const error = await res.text();
+      toast.error(error || 'ไม่สามารถอัพเดทสถานะงวดงานได้');
+    }
+  };
+
   const handleSavePeriod = async (data) => {
     // ใช้ id จาก data ที่ส่งมาจาก modal หรือจาก initial
     const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
@@ -414,7 +452,7 @@ export default function ContractDetailPage() {
                     แก้ไข
                   </button>
                   <button 
-                    onClick={handleDelete} 
+                    onClick={handleDeleteContract} 
                     className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -631,6 +669,12 @@ export default function ContractDetailPage() {
                     {role === 'admin' && <td className="p-4 border-b text-center">
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 justify-center">
+                          {p.status !== 'COMPLETED' && (
+                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={() => handleCompletePeriod(p.id)}>
+                              <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              เสร็จสิ้น
+                            </button>
+                          )}
                           <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => handleEditPeriod(p)}>
                             <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>
                             แก้ไข
