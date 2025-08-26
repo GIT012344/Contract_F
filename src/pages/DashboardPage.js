@@ -164,7 +164,7 @@ export default function DashboardPage() {
         
         // Calculate upcoming deadlines (next 7 days) with contract names
         const currentDate = new Date();
-        const upcomingDeadlines = enhancedPeriods.filter(p => {
+        const upcomingDeadlines7Days = enhancedPeriods.filter(p => {
           const dueDate = new Date(p.due_date);
           const diffTime = dueDate - currentDate;
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
