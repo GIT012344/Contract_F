@@ -29,7 +29,7 @@ export default function LoginPage() {
     const fetchDepartments = async () => {
       try {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5005';
-        const response = await fetch(`${apiUrl}/api/departments`);
+        const response = await fetch(`${apiUrl}/api/departments/public`);
         if (response.ok) {
           const data = await response.json();
           setDepartments(data);
