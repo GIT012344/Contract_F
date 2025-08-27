@@ -20,8 +20,18 @@ function validateEmails(emailString) {
 
 // Period Modal Component
 function PeriodModal({ open, onClose, onSave, initial }) {
+  const formatDateForInput = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
-  const [dueDate, setDueDate] = useState(initial?.dueDate || initial?.due_date);
+  const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
   const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
   const [error, setError] = useState('');
@@ -29,7 +39,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 
   useEffect(() => {
     setNumber(initial?.periodNo || initial?.period_no || '');
-    setDueDate(initial?.dueDate || initial?.due_date);
+    setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
     setAlertDays(initial?.alert_days ?? 0);
     setStatus(initial?.status || 'รอดำเนินการ');
     setError('');
@@ -51,8 +61,8 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           {initial ? 'แก้ไข' : 'เพิ่ม'} งวดงาน
         </h3>
         <div className="mb-3">
-          <label className="block text-sm font-semibold mb-1">รหัสงวด</label>
-          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value)} placeholder="เช่น A1, B2, 001" />
+          <label className="block text-sm font-semibold mb-1">เลขงวด</label>
+          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="เช่น 1" />
         </div>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>
@@ -75,7 +85,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={() => {
             if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
             const saveData = { 
-              period_no: number, 
+              period_no: Number(number), 
               due_date: dueDate, 
               alert_days: alertDays, 
               status,
@@ -93,7 +103,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 }
 
 export default function AddContract({ onSuccess, onClose, initial }) {
-  const { authFetch, user } = useAuth();  
+  const { authFetch, user, token } = useAuth();  
   const role = user?.role;
   const userDepartment = user?.department || user?.department_id; // Try both fields
   const [departments, setDepartments] = useState([]);
@@ -129,13 +139,19 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       };
     }
     
+    // แปลงวันที่จาก backend format เป็น input date format
+    const formatDateForInput = (dateStr) => {
+      if (!dateStr) return "";
+      return dateStr.split('T')[0];
+    };
+    
     return {
       contractNo: initial.contract_no || initial.contractNo || "",
-      contractDate: initial.contract_date || initial.contractDate || "",
+      contractDate: formatDateForInput(initial.contract_date || initial.contractDate) || "",
       contactName: initial.contact_name || initial.contactName || "",
       department: initial.department || "",
-      startDate: initial.start_date || initial.startDate || "",
-      endDate: initial.end_date || initial.endDate || "",
+      startDate: formatDateForInput(initial.start_date || initial.startDate) || "",
+      endDate: formatDateForInput(initial.end_date || initial.endDate) || "",
       remark1: initial.remark1 || "",
       remark2: initial.remark2 || "",
       remark3: initial.remark3 || "",
@@ -167,10 +183,8 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         setLoadingDepts(false);
       }
     };
-    if (role === 'admin' || role === 'superadmin') {
-      fetchDepartments();
-    }
-  }, [role, authFetch]);
+    fetchDepartments();
+  }, []);
   
   // Load existing periods when editing
   useEffect(() => {
@@ -197,7 +211,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
     };
     
     loadPeriods();
-  }, [contractId, initial, authFetch]);
+  }, [contractId, initial]);
   
   // Check if department is custom after departments are loaded
   useEffect(() => {
@@ -214,6 +228,16 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       }
     }
   }, [initial, departments]);
+
+  // ฟังก์ชันแปลงวันที่
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -316,14 +340,8 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const responseData = await res.json();
         toast.success(isEdit ? 'แก้ไขสัญญาสำเร็จ' : 'เพิ่มสัญญาสำเร็จ');
-        if (onSuccess) {
-          onSuccess(responseData);
-        }
-        if (onClose) {
-          onClose();
-        }
+        if (onSuccess) onSuccess();
       } else {
         let errMsg = 'บันทึกข้อมูลไม่สำเร็จ';
         try {

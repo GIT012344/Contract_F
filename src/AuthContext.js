@@ -58,8 +58,8 @@ export function AuthProvider({ children }) {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    // ใช้ environment variable หรือ default
-    const apiUrl = process.env.REACT_APP_API_URL || 'https://contract-b.onrender.com';
+    // Hardcode for production (temporary fix - should use env var)
+    const apiUrl = 'https://contract-b.onrender.com';
     const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
     
     return fetch(fullUrl, {

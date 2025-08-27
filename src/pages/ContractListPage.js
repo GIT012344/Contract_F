@@ -17,7 +17,7 @@ function daysLeft(endDate) {
 export default function ContractListPage() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     contractNo: "",
     contactName: "",
@@ -33,9 +33,11 @@ export default function ContractListPage() {
     remark4: ""
   });
   const [filteredContracts, setFilteredContracts] = useState([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingContract, setEditingContract] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
-  const [refreshKey] = useState(0); 
+  const [refreshKey] = useState(0); // เพิ่ม state สำหรับ trigger refresh
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importErrors, setImportErrors] = useState([]);
@@ -62,21 +64,6 @@ export default function ContractListPage() {
     if (token) fetchDepartments();
   }, [token]);
 
-  const handleAddSuccess = (newContract) => {
-    setShowCreateModal(false);
-    if (newContract) {
-      // Add the new contract to the list immediately
-      setContracts(prevContracts => [newContract, ...prevContracts]);
-    } else {
-      // Fallback: fetch all contracts if no data returned
-      setLoading(true);
-      authFetch('/api/contracts')  
-        .then(async res => res.ok ? res.json() : [])
-        .then(setContracts)
-        .finally(() => setLoading(false));
-    }
-  };
-
   const loadContracts = useCallback(() => {
     if (!token) return;
     
@@ -88,9 +75,9 @@ export default function ContractListPage() {
         const data = await res.json();
         setContracts(data);
       })
-      .catch(e => console.error(e))
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token, authFetch]);
+  }, [token]);
 
   useEffect(() => {
     loadContracts();
@@ -297,6 +284,14 @@ export default function ContractListPage() {
     }
   };
 
+  const handleAddSuccess = () => {
+    setShowCreateModal(false);
+    setLoading(true);
+    authFetch('/api/contracts')  
+      .then(async res => res.ok ? res.json() : [])
+      .then(setContracts)
+      .finally(() => setLoading(false));
+  };
 
   const handleFilterChange = (e) => {
     setFilters((prevFilters) => ({ ...prevFilters, [e.target.name]: e.target.value }));
@@ -590,6 +585,14 @@ export default function ContractListPage() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
             </div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <svg className="mx-auto h-12 w-12 text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <h3 className="text-lg font-medium text-red-800 mb-2">เกิดข้อผิดพลาด</h3>
+            <p className="text-red-600">{error}</p>
           </div>
         ) : (
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
