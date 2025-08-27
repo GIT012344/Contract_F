@@ -42,14 +42,21 @@ export default function ContractListPage() {
   const { token, role, authFetch } = useAuth();
 
   // ฟังก์ชันสำหรับโหลดข้อมูลสัญญา
-  // Load departments on mount
+  // Fetch departments for dropdown
   useEffect(() => {
     const fetchDepartments = async () => {
+      setLoadingDepts(true);
       try {
         const response = await authFetch('/api/departments', {}, token);
         if (response.ok) {
           const data = await response.json();
-          setDepartments(data.data || []);
+          // Transform departments to have code and name properties
+          const transformedDepts = data.map(dept => ({
+            code: dept.code || dept.id,
+            name: dept.name,
+            id: dept.id
+          }));
+          setDepartments(transformedDepts);
         }
       } catch (error) {
         console.error('Error fetching departments:', error);
@@ -58,7 +65,7 @@ export default function ContractListPage() {
       }
     };
     if (token) fetchDepartments();
-  }, [token]);
+  }, [token, authFetch]);
 
   const loadContracts = useCallback(() => {
     if (!token) return;
@@ -127,10 +134,11 @@ export default function ContractListPage() {
     // Case-insensitive search
     const matchNumber = !filters.contractNo || contract.contract_no?.toLowerCase().includes(filters.contractNo.toLowerCase());
     const matchName = !filters.contactName || contract.contact_name?.toLowerCase().includes(filters.contactName.toLowerCase());
-    // Match department by either department field or department_id
+    // Match department by code, id, or department field
     const matchDepartment = filters.department === "" || 
                            contract.department === filters.department || 
-                           contract.department_id === filters.department;
+                           String(contract.department_id) === filters.department ||
+                           contract.department_code === filters.department;
     
     // Status matching - handle EXPIRED specially to check actual dates
     let matchStatus = !filters.status;
