@@ -35,8 +35,8 @@ export default function ContractListPage() {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [refreshKey] = useState(0); // เพิ่ม state สำหรับ trigger refresh
-  const [showImport] = useState(false);
-  const [importing] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const navigate = useNavigate();
   const { token, role, authFetch } = useAuth();
