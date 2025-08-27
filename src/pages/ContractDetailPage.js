@@ -378,9 +378,9 @@ export default function ContractDetailPage() {
                       {(user.role === 'admin') && <td className="p-4 border-b text-center">
                         <div className="flex flex-col gap-2">
                           <div className="flex gap-2 justify-center">
-                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={() => {
+                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={async () => {
                               if (!window.confirm('ยืนยันการทำเครื่องหมายงวดงานนี้เป็นเสร็จสิ้น?')) return;
-                              const res = fetch(`/api/contracts/${id}/periods/${p.id}/complete`, { 
+                              const res = await fetch(`/api/contracts/${id}/periods/${p.id}/complete`, { 
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ status: 'COMPLETED' })
@@ -399,9 +399,9 @@ export default function ContractDetailPage() {
                               }
                             }}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>เสร็จสิ้น</button>
                             <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => setPeriodModal({ open: true, initial: p })}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>แก้ไข</button>
-                            <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={() => {
+                            <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={async () => {
                               if (!window.confirm('ยืนยันการลบงวดงานนี้?')) return;
-                              const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { method: 'DELETE' });
+                              const res = await fetch(`/api/contracts/${id}/periods/${p.id}`, { method: 'DELETE' });
                               if (res.ok) {
                                 toast.success('ลบงวดงานสำเร็จ');
                                 setPeriods(periods.filter(period => period.id !== p.id));
@@ -414,9 +414,9 @@ export default function ContractDetailPage() {
                           {p.status !== 'เสร็จสิ้น' && (
                             <button 
                               className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!window.confirm('ยืนยันการเปลี่ยนสถานะเป็น เสร็จสิ้น?')) return;
-                                const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { 
+                                const res = await fetch(`/api/contracts/${id}/periods/${p.id}`, { 
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ 
@@ -439,7 +439,6 @@ export default function ContractDetailPage() {
                                   toast.error(error || 'ไม่สามารถอัพเดทสถานะได้');
                                 }
                               }}
-                              title="ทำเครื่องหมายเสร็จสิ้น"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -450,9 +449,9 @@ export default function ContractDetailPage() {
                           {p.status === 'เสร็จสิ้น' && (
                             <button 
                               className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!window.confirm('ยืนยันการเปลี่ยนสถานะเป็น รอดำเนินการ?')) return;
-                                const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { 
+                                const res = await fetch(`/api/contracts/${id}/periods/${p.id}`, { 
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ 
@@ -475,7 +474,6 @@ export default function ContractDetailPage() {
                                   toast.error(error || 'ไม่สามารถอัพเดทสถานะได้');
                                 }
                               }}
-                              title="เปลี่ยนเป็นรอดำเนินการ"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -492,7 +490,7 @@ export default function ContractDetailPage() {
             </div>
           )}
         </div>
-        <PeriodModal open={periodModal.open} onClose={() => setPeriodModal({ open: false, initial: null })} onSave={(data) => {
+        <PeriodModal open={periodModal.open} onClose={() => setPeriodModal({ open: false, initial: null })} onSave={async (data) => {
           const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
           const isEdit = !!periodId;
           const method = isEdit ? 'PUT' : 'POST';
@@ -503,7 +501,7 @@ export default function ContractDetailPage() {
           }
           // ลบ id ออกจาก data ก่อนส่งไป backend
           const { id: _, ...periodData } = data;
-          const res = fetch(url, {
+          const res = await fetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(periodData)
