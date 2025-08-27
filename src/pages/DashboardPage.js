@@ -30,7 +30,7 @@ export default function DashboardPage() {
         setLoading(true);
         
         // Fetch contracts
-        const contractsRes = await authFetch('/api/contracts', {}, token);
+        const contractsRes = await authFetch('/api/contracts');
         if (contractsRes.ok) {
           const contracts = await contractsRes.json();
           const today = new Date();
@@ -47,12 +47,7 @@ export default function DashboardPage() {
           // Fetch periods from each contract individually
           const periodPromises = contracts.map(async (contract) => {
             try {
-              const res = await authFetch(`/api/contracts/${contract.id}/periods`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
-              }, token);
+              const res = await authFetch(`/api/contracts/${contract.id}/periods`);
               if (res.ok) {
                 const periods = await res.json();
                 return periods;
@@ -70,12 +65,7 @@ export default function DashboardPage() {
           // Fallback: Try to fetch all periods at once if individual fetching failed
           if (allPeriods.length === 0 && contracts.length > 0) {
             try {
-              const fallbackRes = await authFetch('/api/periods', {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
-              }, token);
+              const fallbackRes = await authFetch('/api/periods');
               if (fallbackRes.ok) {
                 const fallbackPeriods = await fallbackRes.json();
                 allPeriods = fallbackPeriods;
