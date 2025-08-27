@@ -94,7 +94,7 @@ export default function DashboardPage() {
             .slice(0, 5)
             .map(period => ({
               ...period,
-              contract_title: contractsMap[period.contract_id]?.title || 'ไม่ระบุชื่อสัญญา'
+              contract_title: contractsMap[period.contract_id]?.contact_name || contractsMap[period.contract_id]?.contract_no || 'ไม่ระบุชื่อสัญญา'
             }));
           
           // Get recent contracts (last 5)
@@ -107,13 +107,12 @@ export default function DashboardPage() {
           const getContractTitle = (contract) => {
             if (!contract) return 'ไม่ระบุสัญญา';
             
-            // Use contact_name as the primary field (from database schema)
-            return contract.contact_name || 
-                   contract.title || 
+            // Try different possible field names
+            return contract.title || 
                    contract.name || 
                    contract.contract_name || 
+                   contract.contact_name || 
                    contract.project_name ||
-                   contract.contract_no ||
                    `สัญญา #${contract.id}` || 
                    'ไม่ระบุสัญญา';
           };

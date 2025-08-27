@@ -127,7 +127,10 @@ export default function ContractListPage() {
     // Case-insensitive search
     const matchNumber = !filters.contractNo || contract.contract_no?.toLowerCase().includes(filters.contractNo.toLowerCase());
     const matchName = !filters.contactName || contract.contact_name?.toLowerCase().includes(filters.contactName.toLowerCase());
-    const matchDepartment = filters.department === "" || contract.department_id == filters.department;
+    // Match department by either department field or department_id
+    const matchDepartment = filters.department === "" || 
+                           contract.department === filters.department || 
+                           contract.department_id === filters.department;
     
     // Status matching - handle EXPIRED specially to check actual dates
     let matchStatus = !filters.status;
@@ -417,7 +420,7 @@ export default function ContractListPage() {
               >
                 <option value="">ทุกหน่วยงาน</option>
                 {departments.map(dept => (
-                  <option key={dept.id} value={dept.id}>
+                  <option key={dept.code} value={dept.code}>
                     {dept.code} - {dept.name}
                   </option>
                 ))}
