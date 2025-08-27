@@ -107,12 +107,13 @@ export default function DashboardPage() {
           const getContractTitle = (contract) => {
             if (!contract) return 'ไม่ระบุสัญญา';
             
-            // Try different possible field names
-            return contract.title || 
+            // Use contact_name as the primary field (from database schema)
+            return contract.contact_name || 
+                   contract.title || 
                    contract.name || 
                    contract.contract_name || 
-                   contract.contact_name || 
                    contract.project_name ||
+                   contract.contract_no ||
                    `สัญญา #${contract.id}` || 
                    'ไม่ระบุสัญญา';
           };

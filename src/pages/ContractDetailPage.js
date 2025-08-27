@@ -54,7 +54,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
         </h3>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">เลขงวด</label>
-          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="เช่น 1" aria-label="เลขงวด" />
+          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value)} placeholder="เช่น 1, 1A, งวด1" aria-label="เลขงวด" />
         </div>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>
@@ -179,8 +179,21 @@ export default function ContractDetailPage() {
       }
     };
 
+    const loadPeriods = async () => {
+      try {
+        const res = await authFetch(`/api/contracts/${id}/periods`);
+        if (res.ok) {
+          const data = await res.json();
+          setPeriods(data);
+        }
+      } catch (err) {
+        console.error('Error loading periods:', err);
+      }
+    };
+
     if (id) {
       loadContract();
+      loadPeriods();
     }
   }, [id, authFetch]);
 
