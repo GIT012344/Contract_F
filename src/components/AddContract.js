@@ -85,7 +85,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={() => {
             if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
             const saveData = { 
-              period_no: Number(number), 
+              period_no: number, // Allow string values
               due_date: dueDate, 
               alert_days: alertDays, 
               status,

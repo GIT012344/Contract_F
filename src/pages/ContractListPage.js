@@ -32,18 +32,14 @@ export default function ContractListPage() {
     remark3: "",
     remark4: ""
   });
-  const [filteredContracts, setFilteredContracts] = useState([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingContract, setEditingContract] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [refreshKey] = useState(0); // เพิ่ม state สำหรับ trigger refresh
-  const [showImport, setShowImport] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [importErrors, setImportErrors] = useState([]);
-  const [importing, setImporting] = useState(false);
+  const [showImport] = useState(false);
+  const [importing] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const navigate = useNavigate();
-  const { token, role, user, authFetch } = useAuth();
+  const { token, role, authFetch } = useAuth();
 
   // ฟังก์ชันสำหรับโหลดข้อมูลสัญญา
   // Load departments on mount

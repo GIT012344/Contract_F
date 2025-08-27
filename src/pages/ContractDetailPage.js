@@ -83,7 +83,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
             if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
             // ส่ง id กลับไปด้วยถ้าเป็นการแก้ไข
             const saveData = { 
-              period_no: Number(number), 
+              period_no: number, // Allow string values
               due_date: dueDate, 
               alert_days: alertDays, 
               status 
