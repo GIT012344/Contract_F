@@ -42,21 +42,15 @@ export default function ContractListPage() {
   const { token, role, authFetch } = useAuth();
 
   // ฟังก์ชันสำหรับโหลดข้อมูลสัญญา
-  // Fetch departments for dropdown
+  // Fetch departments on mount
   useEffect(() => {
     const fetchDepartments = async () => {
       setLoadingDepts(true);
       try {
-        const response = await authFetch('/api/departments', {}, token);
+        const response = await authFetch('/api/departments');
         if (response.ok) {
           const data = await response.json();
-          // Transform departments to have code and name properties
-          const transformedDepts = data.map(dept => ({
-            code: dept.code || dept.id,
-            name: dept.name,
-            id: dept.id
-          }));
-          setDepartments(transformedDepts);
+          setDepartments(data.data || data || []);
         }
       } catch (error) {
         console.error('Error fetching departments:', error);
@@ -134,11 +128,10 @@ export default function ContractListPage() {
     // Case-insensitive search
     const matchNumber = !filters.contractNo || contract.contract_no?.toLowerCase().includes(filters.contractNo.toLowerCase());
     const matchName = !filters.contactName || contract.contact_name?.toLowerCase().includes(filters.contactName.toLowerCase());
-    // Match department by code, id, or department field
+    // Match department by either department field or department_id
     const matchDepartment = filters.department === "" || 
                            contract.department === filters.department || 
-                           String(contract.department_id) === filters.department ||
-                           contract.department_code === filters.department;
+                           contract.department_id === filters.department;
     
     // Status matching - handle EXPIRED specially to check actual dates
     let matchStatus = !filters.status;
