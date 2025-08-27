@@ -3,7 +3,7 @@ import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
 
 export default function NotificationCenter() {
-  const { user, authFetch, token } = useAuth();
+  const { authFetch, token } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../AuthContext';
 import { exportSummaryToCSV, generateSummaryReport } from '../utils/exportUtils';
@@ -19,45 +19,7 @@ export default function ReportsPage() {
   });
   const [reportData, setReportData] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (contracts.length > 0 || periods.length > 0) {
-      generateReport();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contracts, periods, dateRange]);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      const [contractsRes, periodsRes] = await Promise.all([
-        authFetch('/api/contracts'),
-        authFetch('/api/periods')
-      ]);
-
-      if (contractsRes.ok) {
-        const contractsData = await contractsRes.json();
-        setContracts(contractsData);
-      }
-
-      if (periodsRes.ok) {
-        const periodsData = await periodsRes.json();
-        setPeriods(periodsData);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('ไม่สามารถโหลดข้อมูลได้');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateReport = () => {
+  const generateReport = useCallback(() => {
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     
@@ -74,7 +36,6 @@ export default function ReportsPage() {
     // Filter periods for the filtered contracts
     const contractIds = filteredContracts.map(c => c.id);
     const filteredPeriods = periods.filter(p => contractIds.includes(p.contract_id));
-    
     
     // Generate statistics with correct status values
     const stats = {
@@ -151,7 +112,43 @@ export default function ReportsPage() {
       contracts: filteredContracts,
       periods: filteredPeriods
     });
-  };
+  }, [contracts, periods, dateRange, role]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        const [contractsRes, periodsRes] = await Promise.all([
+          authFetch('/api/contracts'),
+          authFetch('/api/periods')
+        ]);
+
+        if (contractsRes.ok) {
+          const contractsData = await contractsRes.json();
+          setContracts(contractsData);
+        }
+
+        if (periodsRes.ok) {
+          const periodsData = await periodsRes.json();
+          setPeriods(periodsData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('ไม่สามารถโหลดข้อมูลได้');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [authFetch]);
+
+  useEffect(() => {
+    if (contracts.length > 0 || periods.length > 0) {
+      generateReport();
+    }
+  }, [contracts, periods, dateRange, generateReport]);
 
   const handleExportReport = () => {
     if (!reportData) return;

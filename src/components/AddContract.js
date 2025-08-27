@@ -183,8 +183,10 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         setLoadingDepts(false);
       }
     };
-    fetchDepartments();
-  }, []);
+    if (role === 'admin' || role === 'superadmin') {
+      fetchDepartments();
+    }
+  }, [role, authFetch]);
   
   // Load existing periods when editing
   useEffect(() => {
@@ -228,16 +230,6 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       }
     }
   }, [initial, departments]);
-
-  // ฟังก์ชันแปลงวันที่
-  const formatDate = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;

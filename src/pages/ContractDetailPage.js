@@ -136,22 +136,12 @@ export default function ContractDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { token, user, authFetch } = useAuth();
-  const role = user?.role; // Extract role from user object
-  const department = user?.department || user?.department_id; // Extract department from user object (try both fields)
   const [contract, setContract] = useState(null);
-  const [files, setFiles] = useState([]);
   const [periods, setPeriods] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [fileLoading, setFileLoading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const [uploadSuccess, setUploadSuccess] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [periodModal, setPeriodModal] = useState({ open: false, initial: null });
-  const [periodLoading, setPeriodLoading] = useState(false);
-  const [periodError, setPeriodError] = useState('');
-  const [periodMsg, setPeriodMsg] = useState('');
-  const fileInputRef = useRef();
   const [showEditModal, setShowEditModal] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -177,217 +167,27 @@ export default function ContractDetailPage() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      authFetch(`/api/contracts/${id}`).then(async res => {
-        if (res.status === 401) throw new Error('Session หมดอายุ');
-        if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
-        return res.json();
-      }),
-      authFetch(`/api/contracts/${id}/files`).then(async res => {
-        if (!res.ok) return [];
-        return res.json();
-      }),
-      authFetch(`/api/contracts/${id}/periods`).then(async res => {
-        if (!res.ok) return [];
-        return res.json();
-      })
-    ])
-      .then(([contract, files, periods]) => {
-        setContract(contract);
-        setFiles(files);
-        setPeriods(periods);
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id, token]);
-
-  const refreshFiles = async () => {
-    setFileLoading(true);
-    const res = await authFetch(`/api/contracts/${id}/files`);
-    if (res.ok) setFiles(await res.json());
-    setFileLoading(false);
-  };
-
-  const handleDeleteFile = async (fileId) => {
-    if (!window.confirm('ยืนยันการลบไฟล์นี้?')) return;
-    setFileLoading(true);
-    const res = await authFetch(`/api/contracts/${id}/files/${fileId}`, { method: 'DELETE' });
-    if (res.ok) {
-      toast.success('ลบไฟล์สำเร็จ');
-      await refreshFiles();
-    } else {
-      toast.error('ลบไฟล์ไม่สำเร็จ');
-      setFileLoading(false);
-    }
-  };
-
-  const handleUpload = async e => {
-    e.preventDefault();
-    setUploadError('');
-    setUploadSuccess('');
-    const filesToUpload = fileInputRef.current.files;
-    if (!filesToUpload.length) {
-      toast.error('กรุณาเลือกไฟล์');
-      return;
-    }
-    if (files.length + filesToUpload.length > 5) {
-      toast.error('แนบไฟล์ได้สูงสุด 5 ไฟล์/สัญญา');
-      return;
-    }
-    const formData = new FormData();
-    for (let i = 0; i < filesToUpload.length; i++) {
-      formData.append('files', filesToUpload[i]);
-    }
-    setUploading(true);
-    const res = await fetch(`/api/contracts/${id}/upload`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    setUploading(false);
-    if (res.ok) {
-      toast.success('อัปโหลดไฟล์สำเร็จ');
-      fileInputRef.current.value = '';
-      await refreshFiles();
-    } else {
-      toast.error('อัปโหลดไฟล์ไม่สำเร็จ');
-    }
-  };
-
-  const refreshPeriods = async () => {
-    const res = await authFetch(`/api/contracts/${id}/periods`);
-    if (res.ok) setPeriods(await res.json());
-  };
-
-  const handleAddPeriod = () => setPeriodModal({ open: true, initial: null });
-  const handleEditPeriod = (period) => setPeriodModal({ open: true, initial: period });
-  const handleDeletePeriod = async (periodId) => {
-    if (!window.confirm('ยืนยันการลบงวดงานนี้?')) return;
-    setPeriodMsg(''); setPeriodError('');
-    const res = await authFetch(`/api/contracts/${id}/periods/${periodId}`, { method: 'DELETE' });
-    if (res.ok) {
-      toast.success('ลบงวดงานสำเร็จ');
-      await refreshPeriods();
-    } else {
-      const error = await res.text();
-      toast.error(error || 'ไม่สามารถลบงวดงานได้');
-    }
-  };
-
-  const handleCompletePeriod = async (periodId) => {
-    if (!window.confirm('ยืนยันการทำเครื่องหมายงวดงานนี้เป็นเสร็จสิ้น?')) return;
-    const res = await authFetch(`/api/contracts/${id}/periods/${periodId}/complete`, { 
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'COMPLETED' })
-    });
-    if (res.ok) {
-      toast.success('อัพเดทสถานะงวดงานสำเร็จ');
-      await refreshPeriods();
-    } else {
-      const error = await res.text();
-      toast.error(error || 'ไม่สามารถอัพเดทสถานะงวดงานได้');
-    }
-  };
-
-  const handleSavePeriod = async (data) => {
-    // ใช้ id จาก data ที่ส่งมาจาก modal หรือจาก initial
-    const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
-    const isEdit = !!periodId;
-    const method = isEdit ? 'PUT' : 'POST';
-    const url = isEdit ? `/api/contracts/${id}/periods/${periodId}` : `/api/contracts/${id}/periods`;
-    if (data.alert_days === undefined || data.alert_days === null) {
-      toast.error('กรุณากรอกจำนวนวันแจ้งเตือนล่วงหน้า');
-      return;
-    }
-    // ลบ id ออกจาก data ก่อนส่งไป backend
-    const { id: _, ...periodData } = data;
-    const res = await authFetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(periodData)
-    }, token);
-    if (res.ok) {
-      toast.success(isEdit ? 'แก้ไขงวดงานสำเร็จ' : 'เพิ่มงวดงานสำเร็จ');
-      setPeriodModal({ open: false, initial: null });
-      await refreshPeriods();
-    } else {
-      const error = await res.json().catch(() => ({}));
-      toast.error(error.error || 'บันทึกงวดงานไม่สำเร็จ');
-    }
-  };
-
-  const handleUpdatePeriodStatus = async (periodId, newStatus) => {
-    const statusText = newStatus === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอดำเนินการ';
-    
-    if (!window.confirm(`ยืนยันการเปลี่ยนสถานะงวดงานเป็น "${statusText}"?`)) {
-      return;
-    }
-    
-    setPeriodMsg(''); 
-    setPeriodError('');
-    
-    try {
-      // Find the period to get its current data
-      const period = periods.find(p => p.id === periodId);
-      if (!period) {
-        toast.error('ไม่พบข้อมูลงวดงาน');
-        return;
+    const loadContract = async () => {
+      setLoading(true);
+      try {
+        const res = await authFetch(`/api/contracts/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setContract(data);
+        } else {
+          setError('ไม่สามารถโหลดข้อมูลสัญญาได้');
+        }
+      } catch (err) {
+        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      } finally {
+        setLoading(false);
       }
-      
-      const res = await authFetch(`/api/contracts/${id}/periods/${periodId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          period_no: period.period_no,
-          due_date: period.due_date,
-          alert_days: period.alert_days || 0,
-          status: newStatus 
-        })
-      }, token);
-      
-      if (res.ok) {
-        toast.success(`อัปเดตสถานะเป็น "${statusText}" สำเร็จ`);
-        await refreshPeriods();
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        toast.error(errorData.error || 'อัปเดตสถานะไม่สำเร็จ');
-      }
-    } catch (error) {
-      console.error('Error updating period status:', error);
-      toast.error('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+    };
+
+    if (id) {
+      loadContract();
     }
-  };
-
-  const refreshContract = async () => {
-    const res = await authFetch(`/api/contracts/${id}`);
-    if (res.ok) setContract(await res.json());
-  };
-
-  if (loading) return <div className="flex justify-center items-center py-10"><span className="animate-spin inline-block w-8 h-8 border-4 border-blue-400 border-t-white rounded-full"></span></div>;
-  if (error) return <div className="text-red-600 font-semibold text-center py-6">{error}</div>;
-  if (!contract) return <div className="text-gray-400 text-center py-10">ไม่พบข้อมูล</div>;
-
-  const handleEdit = () => setShowEditModal(true);
-  const handleDelete = async () => {
-    if (!window.confirm('ยืนยันการลบสัญญานี้?')) return;
-    setDeleteMsg(""); setDeleteError("");
-    try {
-      const res = await authFetch(`/api/contracts/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        toast.success('ลบสัญญาสำเร็จ');
-        setTimeout(() => { navigate('/contracts'); }, 1000);
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        toast.error(errorData.error || 'ลบสัญญาไม่สำเร็จ');
-        console.error('Delete error:', errorData);
-      }
-    } catch (error) {
-      console.error('Delete request error:', error);
-      toast.error('เกิดข้อผิดพลาดในการลบสัญญา');
-    }
-  };
+  }, [id, authFetch]);
 
   const handlePrint = () => {
     printContract(contract, periods);
@@ -426,7 +226,7 @@ export default function ContractDetailPage() {
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-green-100 rounded-lg">
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-900">ข้อมูลสัญญา</h2>
@@ -440,10 +240,10 @@ export default function ContractDetailPage() {
                 </svg>
                 พิมพ์
               </button>
-              {(role === 'admin' || (department && (contract.department === department || contract.department_id === department))) && (
+              {(user.role === 'admin') && (
                 <>
                   <button 
-                    onClick={handleEdit} 
+                    onClick={() => setShowEditModal(true)} 
                     className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -474,7 +274,7 @@ export default function ContractDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">เลขที่สัญญา</p>
-                  <p className="text-lg font-semibold text-gray-900">{contract.contract_no || '-'}</p>
+                  <p className="text-lg font-semibold text-gray-900">{contract?.contract_no || '-'}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -486,7 +286,7 @@ export default function ContractDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">วันที่เริ่มต้น</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    {contract.start_date ? new Date(contract.start_date).toLocaleDateString('th-TH') : '-'}
+                    {contract?.start_date ? new Date(contract.start_date).toLocaleDateString('th-TH') : '-'}
                   </p>
                 </div>
               </div>
@@ -499,7 +299,7 @@ export default function ContractDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">วันที่สิ้นสุด</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    {contract.end_date ? new Date(contract.end_date).toLocaleDateString('th-TH') : '-'}
+                    {contract?.end_date ? new Date(contract.end_date).toLocaleDateString('th-TH') : '-'}
                   </p>
                 </div>
               </div>
@@ -513,7 +313,7 @@ export default function ContractDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">หน่วยงาน</p>
-                  <p className="text-lg font-semibold text-gray-900">{contract.department || '-'}</p>
+                  <p className="text-lg font-semibold text-gray-900">{contract?.department || '-'}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -536,197 +336,205 @@ export default function ContractDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-500">สถานะ</p>
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    contract.status === 'active' ? 'bg-green-100 text-green-800' :
-                    contract.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                    contract.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                    contract?.status === 'active' ? 'bg-green-100 text-green-800' :
+                    contract?.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                    contract?.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
-                    {contract.status || '-'}
+                    {contract?.status || '-'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        {/* File Upload Section */}
-        {role === 'admin' && (
-          <div className="bg-white shadow-sm rounded-xl p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">ไฟล์แนบ</h2>
-            {isLocked && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-yellow-600">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                <span className="text-sm text-yellow-800">สัญญานี้ถูกล็อคเนื่องจากมีสถานะ {contract.status} ไม่สามารถแก้ไขหรือเพิ่มไฟล์ได้</span>
-              </div>
-            )}
-            {!isLocked && (
-              <form onSubmit={handleUpload} className="mb-4">
-                <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.xlsx,.xls,.jpg,.jpeg,.png"
-                    className="flex-1 border border-gray-300 rounded-lg p-2"
-                  />
-                  <button
-                    type="submit"
-                    disabled={uploading}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors duration-200"
-                  >
-                    {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดไฟล์'}
-                  </button>
-                </div>
-              </form>
-            )}
-            
-            {uploadError && <div className="text-red-600 mb-2 font-semibold">{uploadError}</div>}
-            {uploadSuccess && <div className="text-green-600 mb-2 font-semibold">{uploadSuccess}</div>}
-            
-            {fileLoading ? (
-              <div className="flex justify-center py-4">
-                <span className="animate-spin inline-block w-6 h-6 border-4 border-blue-400 border-t-white rounded-full"></span>
-              </div>
-            ) : files.length === 0 ? (
-              <div className="text-gray-400">ไม่มีไฟล์แนบ</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-4 py-2 text-left font-medium text-gray-700">ชื่อไฟล์</th>
-                      <th className="px-4 py-2 text-center font-medium text-gray-700">ดาวน์โหลด</th>
-                      {!isLocked && (
-                        <th className="px-4 py-2 text-center font-medium text-gray-700">ลบ</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {files.map(file => (
-                      <tr key={file.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3">{file.filename}</td>
-                        <td className="px-4 py-3 text-center">
-                          <a 
-                            href={`/${file.path}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-blue-600 hover:text-blue-800 underline"
-                          >
-                            ดาวน์โหลด
-                          </a>
-                        </td>
-                        {!isLocked && (
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => handleDeleteFile(file.id)}
-                              className="text-red-600 hover:text-red-800 transition-colors duration-200"
-                              title="ลบไฟล์"
+        {/* งวดงาน */}
+        <div className="mb-8">
+          <h3 className="font-bold mb-2 text-blue-700">งวดงาน</h3>
+          {(user.role === 'admin') && <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded-lg font-semibold shadow mb-2 transition" onClick={() => setPeriodModal({ open: true, initial: null })}>+ เพิ่มงวดงาน</button>}
+          {periods.length === 0 ? (
+            <div className="text-gray-400 text-center py-8">ไม่มีงวดงาน</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl shadow">
+              <table className="w-full text-sm md:text-base">
+                <thead>
+                  <tr className="bg-gradient-to-r from-blue-200 via-blue-100 to-blue-200 text-blue-900 text-base">
+                    <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" /></svg>เลขงวด</span></th>
+                    <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>วันที่กำหนดส่ง</span></th>
+                    <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" /></svg>แจ้งเตือนล่วงหน้า</span></th>
+                    <th className="p-4 font-bold text-center">สถานะ</th>
+                    {(user.role === 'admin') && <th className="p-4 font-bold text-center">จัดการ</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {periods.length === 0 ? (
+                    <tr><td colSpan={(user.role === 'admin') ? 5 : 4} className="text-center text-gray-400 py-10 text-lg">ไม่มีงวดงาน</td></tr>
+                  ) : periods.map(p => (
+                    <tr key={p.id} className="transition hover:bg-blue-50 even:bg-blue-50/50 text-base">
+                      <td className="p-4 border-b text-right font-mono text-lg">{p.period_no || '-'}</td>
+                      <td className="p-4 border-b text-center">{formatDateThaiWithIcon(p.due_date)}</td>
+                      <td className="p-4 border-b text-center"><AlertDaysCell days={p.alert_days} /></td>
+                      <td className="p-4 border-b text-center"><StatusBadge status={p.status} /></td>
+                      {(user.role === 'admin') && <td className="p-4 border-b text-center">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2 justify-center">
+                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={() => {
+                              if (!window.confirm('ยืนยันการทำเครื่องหมายงวดงานนี้เป็นเสร็จสิ้น?')) return;
+                              const res = fetch(`/api/contracts/${id}/periods/${p.id}/complete`, { 
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'COMPLETED' })
+                              });
+                              if (res.ok) {
+                                toast.success('อัพเดทสถานะงวดงานสำเร็จ');
+                                const newPeriods = [...periods];
+                                const index = newPeriods.findIndex(period => period.id === p.id);
+                                if (index !== -1) {
+                                  newPeriods[index].status = 'COMPLETED';
+                                  setPeriods(newPeriods);
+                                }
+                              } else {
+                                const error = await res.text();
+                                toast.error(error || 'ไม่สามารถอัพเดทสถานะงวดงานได้');
+                              }
+                            }}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>เสร็จสิ้น</button>
+                            <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => setPeriodModal({ open: true, initial: p })}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>แก้ไข</button>
+                            <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={() => {
+                              if (!window.confirm('ยืนยันการลบงวดงานนี้?')) return;
+                              const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { method: 'DELETE' });
+                              if (res.ok) {
+                                toast.success('ลบงวดงานสำเร็จ');
+                                setPeriods(periods.filter(period => period.id !== p.id));
+                              } else {
+                                const error = await res.text();
+                                toast.error(error || 'ไม่สามารถลบงวดงานได้');
+                              }
+                            }}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>ลบ</button>
+                          </div>
+                          {p.status !== 'เสร็จสิ้น' && (
+                            <button 
+                              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
+                              onClick={() => {
+                                if (!window.confirm('ยืนยันการเปลี่ยนสถานะเป็น เสร็จสิ้น?')) return;
+                                const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { 
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ 
+                                    period_no: p.period_no,
+                                    due_date: p.due_date,
+                                    alert_days: p.alert_days || 0,
+                                    status: 'เสร็จสิ้น' 
+                                  })
+                                });
+                                if (res.ok) {
+                                  toast.success('อัพเดทสถานะเป็น เสร็จสิ้น สำเร็จ');
+                                  const newPeriods = [...periods];
+                                  const index = newPeriods.findIndex(period => period.id === p.id);
+                                  if (index !== -1) {
+                                    newPeriods[index].status = 'เสร็จสิ้น';
+                                    setPeriods(newPeriods);
+                                  }
+                                } else {
+                                  const error = await res.text();
+                                  toast.error(error || 'ไม่สามารถอัพเดทสถานะได้');
+                                }
+                              }}
+                              title="ทำเครื่องหมายเสร็จสิ้น"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      {/* งวดงาน */}
-      <div className="mb-8">
-        <h3 className="font-bold mb-2 text-blue-700">งวดงาน</h3>
-        {role === 'admin' && <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded-lg font-semibold shadow mb-2 transition" onClick={handleAddPeriod}>+ เพิ่มงวดงาน</button>}
-        {periodMsg && <div className="text-green-600 text-sm mb-1 font-semibold">{periodMsg}</div>}
-        {periodError && <div className="text-red-600 text-sm mb-1 font-semibold">{periodError}</div>}
-        {periods.length === 0 ? (
-          <div className="text-gray-400 text-center py-8">ไม่มีงวดงาน</div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl shadow">
-            <table className="w-full text-sm md:text-base">
-              <thead>
-                <tr className="bg-gradient-to-r from-blue-200 via-blue-100 to-blue-200 text-blue-900 text-base">
-                  <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" /></svg>เลขงวด</span></th>
-                  <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>วันที่กำหนดส่ง</span></th>
-                  <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" /></svg>แจ้งเตือนล่วงหน้า</span></th>
-                  <th className="p-4 font-bold text-center">สถานะ</th>
-                  {role === 'admin' && <th className="p-4 font-bold text-center">จัดการ</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {periods.length === 0 ? (
-                  <tr><td colSpan={role === 'admin' ? 5 : 4} className="text-center text-gray-400 py-10 text-lg">ไม่มีงวดงาน</td></tr>
-                ) : periods.map(p => (
-                  <tr key={p.id} className="transition hover:bg-blue-50 even:bg-blue-50/50 text-base">
-                    <td className="p-4 border-b text-right font-mono text-lg">{p.period_no || '-'}</td>
-                    <td className="p-4 border-b text-center">{formatDateThaiWithIcon(p.due_date)}</td>
-                    <td className="p-4 border-b text-center"><AlertDaysCell days={p.alert_days} /></td>
-                    <td className="p-4 border-b text-center"><StatusBadge status={p.status} /></td>
-                    {role === 'admin' && <td className="p-4 border-b text-center">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2 justify-center">
-                          {p.status !== 'COMPLETED' && (
-                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={() => handleCompletePeriod(p.id)}>
-                              <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               เสร็จสิ้น
                             </button>
                           )}
-                          <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => handleEditPeriod(p)}>
-                            <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>
-                            แก้ไข
-                          </button>
-                          <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={() => handleDeletePeriod(p.id)}>
-                            <svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            ลบ
-                          </button>
+                          {p.status === 'เสร็จสิ้น' && (
+                            <button 
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
+                              onClick={() => {
+                                if (!window.confirm('ยืนยันการเปลี่ยนสถานะเป็น รอดำเนินการ?')) return;
+                                const res = fetch(`/api/contracts/${id}/periods/${p.id}`, { 
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ 
+                                    period_no: p.period_no,
+                                    due_date: p.due_date,
+                                    alert_days: p.alert_days || 0,
+                                    status: 'รอดำเนินการ' 
+                                  })
+                                });
+                                if (res.ok) {
+                                  toast.success('อัพเดทสถานะเป็น รอดำเนินการ สำเร็จ');
+                                  const newPeriods = [...periods];
+                                  const index = newPeriods.findIndex(period => period.id === p.id);
+                                  if (index !== -1) {
+                                    newPeriods[index].status = 'รอดำเนินการ';
+                                    setPeriods(newPeriods);
+                                  }
+                                } else {
+                                  const error = await res.text();
+                                  toast.error(error || 'ไม่สามารถอัพเดทสถานะได้');
+                                }
+                              }}
+                              title="เปลี่ยนเป็นรอดำเนินการ"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              รอดำเนินการ
+                            </button>
+                          )}
                         </div>
-                        {p.status !== 'เสร็จสิ้น' && (
-                          <button 
-                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
-                            onClick={() => handleUpdatePeriodStatus(p.id, 'เสร็จสิ้น')}
-                            title="ทำเครื่องหมายเสร็จสิ้น"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                            เสร็จสิ้น
-                          </button>
-                        )}
-                        {p.status === 'เสร็จสิ้น' && (
-                          <button 
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 justify-center"
-                            onClick={() => handleUpdatePeriodStatus(p.id, 'รอดำเนินการ')}
-                            title="เปลี่ยนเป็นรอดำเนินการ"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            รอดำเนินการ
-                          </button>
-                        )}
-                      </div>
-                    </td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <PeriodModal open={periodModal.open} onClose={() => setPeriodModal({ open: false, initial: null })} onSave={handleSavePeriod} initial={periodModal.initial} />
+                      </td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <PeriodModal open={periodModal.open} onClose={() => setPeriodModal({ open: false, initial: null })} onSave={(data) => {
+          const periodId = data.id || periodModal.initial?.id || periodModal.initial?.period_id;
+          const isEdit = !!periodId;
+          const method = isEdit ? 'PUT' : 'POST';
+          const url = isEdit ? `/api/contracts/${id}/periods/${periodId}` : `/api/contracts/${id}/periods`;
+          if (data.alert_days === undefined || data.alert_days === null) {
+            toast.error('กรุณากรอกจำนวนวันแจ้งเตือนล่วงหน้า');
+            return;
+          }
+          // ลบ id ออกจาก data ก่อนส่งไป backend
+          const { id: _, ...periodData } = data;
+          const res = fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(periodData)
+          });
+          if (res.ok) {
+            toast.success(isEdit ? 'แก้ไขงวดงานสำเร็จ' : 'เพิ่มงวดงานสำเร็จ');
+            setPeriodModal({ open: false, initial: null });
+            const newPeriods = [...periods];
+            if (isEdit) {
+              const index = newPeriods.findIndex(period => period.id === periodId);
+              if (index !== -1) {
+                newPeriods[index] = { ...newPeriods[index], ...periodData };
+              }
+            } else {
+              newPeriods.push({ id: Math.floor(Math.random() * 1000000), ...periodData });
+            }
+            setPeriods(newPeriods);
+          } else {
+            const error = await res.text();
+            toast.error(error || 'บันทึกงวดงานไม่สำเร็จ');
+          }
+        }} initial={periodModal.initial} />
       </div>
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-xl relative">
             <button className="absolute right-2 top-2 text-gray-400 text-2xl" onClick={() => setShowEditModal(false)}>×</button>
-            <AddContract initial={contract} onSuccess={async () => { setShowEditModal(false); await refreshContract(); }} onClose={() => setShowEditModal(false)} />
+            <AddContract initial={contract} onSuccess={async () => { setShowEditModal(false); }} onClose={() => setShowEditModal(false)} />
           </div>
         </div>
       )}
-      </div>
     </Layout>
   );
-} 
+}

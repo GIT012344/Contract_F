@@ -39,47 +39,46 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    fetchSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch user profile
-      const profileRes = await authFetch('/api/users/profile', {}, token);
-      if (profileRes.ok) {
-        const profile = await profileRes.json();
-        setProfileData(prev => ({
-          ...prev,
-          username: profile.username || '',
-          email: profile.email || ''
-        }));
-      }
-      
-      // Fetch notification settings
-      const notifRes = await authFetch('/api/settings/notifications', {}, token);
-      if (notifRes.ok) {
-        const settings = await notifRes.json();
-        setNotificationSettings(prev => ({ ...prev, ...settings }));
-      }
-      
-      // Fetch system settings (admin only)
-      if (role === 'admin') {
-        const systemRes = await authFetch('/api/settings/system', {}, token);
-        if (systemRes.ok) {
-          const settings = await systemRes.json();
-          setSystemSettings(prev => ({ ...prev, ...settings }));
+    const fetchSettings = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch user profile
+        const profileRes = await authFetch('/api/users/profile', {}, token);
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          setProfileData(prev => ({
+            ...prev,
+            username: profile.username || '',
+            email: profile.email || ''
+          }));
         }
+        
+        // Fetch notification settings
+        const notifRes = await authFetch('/api/settings/notifications', {}, token);
+        if (notifRes.ok) {
+          const settings = await notifRes.json();
+          setNotificationSettings(prev => ({ ...prev, ...settings }));
+        }
+        
+        // Fetch system settings (admin only)
+        if (role === 'admin') {
+          const systemRes = await authFetch('/api/settings/system', {}, token);
+          if (systemRes.ok) {
+            const settings = await systemRes.json();
+            setSystemSettings(prev => ({ ...prev, ...settings }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        toast.error('ไม่สามารถโหลดการตั้งค่าได้');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching settings:', error);
-      toast.error('ไม่สามารถโหลดการตั้งค่าได้');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchSettings();
+  }, [authFetch, token]);
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();

@@ -77,7 +77,7 @@ export default function ContractListPage() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, authFetch]);
 
   useEffect(() => {
     loadContracts();

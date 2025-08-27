@@ -24,180 +24,179 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch contracts
-      const contractsRes = await authFetch('/api/contracts', {}, token);
-      if (contractsRes.ok) {
-        const contracts = await contractsRes.json();
-        const today = new Date();
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
         
-        const totalContracts = contracts.length;
-        const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
-        const completedContracts = contracts.filter(c => c.status === 'COMPLETED').length;
-        const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length;
-        const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length;
-        const expiredContracts = contracts.filter(c => 
-          c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
-        ).length;
-        
-        // Fetch periods from each contract individually
-        const periodPromises = contracts.map(async (contract) => {
-          try {
-            const res = await authFetch(`/api/contracts/${contract.id}/periods`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+        // Fetch contracts
+        const contractsRes = await authFetch('/api/contracts', {}, token);
+        if (contractsRes.ok) {
+          const contracts = await contractsRes.json();
+          const today = new Date();
+          
+          const totalContracts = contracts.length;
+          const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
+          const completedContracts = contracts.filter(c => c.status === 'COMPLETED').length;
+          const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length;
+          const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length;
+          const expiredContracts = contracts.filter(c => 
+            c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
+          ).length;
+          
+          // Fetch periods from each contract individually
+          const periodPromises = contracts.map(async (contract) => {
+            try {
+              const res = await authFetch(`/api/contracts/${contract.id}/periods`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }, token);
+              if (res.ok) {
+                const periods = await res.json();
+                return periods;
+              } else {
+                return [];
               }
-            }, token);
-            if (res.ok) {
-              const periods = await res.json();
-              return periods;
-            } else {
+            } catch (error) {
               return [];
             }
-          } catch (error) {
-            return [];
-          }
-        });
-        const periodsArrays = await Promise.all(periodPromises);
-        let allPeriods = periodsArrays.flat();
-        
-        
-        // Fallback: Try to fetch all periods at once if individual fetching failed
-        if (allPeriods.length === 0 && contracts.length > 0) {
-          try {
-            const fallbackRes = await authFetch('/api/periods', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+          });
+          const periodsArrays = await Promise.all(periodPromises);
+          let allPeriods = periodsArrays.flat();
+          
+          
+          // Fallback: Try to fetch all periods at once if individual fetching failed
+          if (allPeriods.length === 0 && contracts.length > 0) {
+            try {
+              const fallbackRes = await authFetch('/api/periods', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }, token);
+              if (fallbackRes.ok) {
+                const fallbackPeriods = await fallbackRes.json();
+                allPeriods = fallbackPeriods;
+              } else {
               }
-            }, token);
-            if (fallbackRes.ok) {
-              const fallbackPeriods = await fallbackRes.json();
-              allPeriods = fallbackPeriods;
-            } else {
+            } catch (fallbackError) {
             }
-          } catch (fallbackError) {
           }
-        }
-        
-        
-        
-        // Create contract lookup map for easy access
-        const contractsMap = contracts.reduce((map, contract) => {
-          map[contract.id] = contract;
-          return map;
-        }, {});
-        
-        // Get upcoming deadlines (next 30 days)
-        const upcomingDeadlines = allPeriods
-          .filter(period => {
-            const dueDate = new Date(period.due_date);
-            const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-            return daysDiff >= 0 && daysDiff <= 30 && period.status !== 'completed';
-          })
-          .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-          .slice(0, 5)
-          .map(period => ({
-            ...period,
-            contract_title: contractsMap[period.contract_id]?.title || 'ไม่ระบุชื่อสัญญา'
-          }));
-        
-        // Get recent contracts (last 5)
-        const recentContracts = contracts
-          .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-          .slice(0, 5);
-        
-        
-        // Helper function to get contract title from various possible field names
-        const getContractTitle = (contract) => {
-          if (!contract) return 'ไม่ระบุสัญญา';
-          
-          // Try different possible field names
-          return contract.title || 
-                 contract.name || 
-                 contract.contract_name || 
-                 contract.contact_name || 
-                 contract.project_name ||
-                 `สัญญา #${contract.id}` || 
-                 'ไม่ระบุสัญญา';
-        };
-        
-        // Enhance periods with contract information
-        const enhancedPeriods = allPeriods.map(period => {
-          const matchedContract = contractsMap[period.contract_id];
-          const contractTitle = getContractTitle(matchedContract);
           
           
-          return {
-            ...period,
-            contract_title: contractTitle,
-            contract_no: matchedContract?.contract_no || matchedContract?.number || 'N/A',
-            contract_department: matchedContract?.department || matchedContract?.dept || 'N/A'
+          
+          // Create contract lookup map for easy access
+          const contractsMap = contracts.reduce((map, contract) => {
+            map[contract.id] = contract;
+            return map;
+          }, {});
+          
+          // Get upcoming deadlines (next 30 days)
+          const upcomingDeadlines = allPeriods
+            .filter(period => {
+              const dueDate = new Date(period.due_date);
+              const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+              return daysDiff >= 0 && daysDiff <= 30 && period.status !== 'completed';
+            })
+            .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+            .slice(0, 5)
+            .map(period => ({
+              ...period,
+              contract_title: contractsMap[period.contract_id]?.title || 'ไม่ระบุชื่อสัญญา'
+            }));
+          
+          // Get recent contracts (last 5)
+          const recentContracts = contracts
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+            .slice(0, 5);
+          
+          
+          // Helper function to get contract title from various possible field names
+          const getContractTitle = (contract) => {
+            if (!contract) return 'ไม่ระบุสัญญา';
+            
+            // Try different possible field names
+            return contract.title || 
+                   contract.name || 
+                   contract.contract_name || 
+                   contract.contact_name || 
+                   contract.project_name ||
+                   `สัญญา #${contract.id}` || 
+                   'ไม่ระบุสัญญา';
           };
-        });
-        
-        
-        // Calculate period stats using enhanced periods
-        const totalPeriods = enhancedPeriods.length;
-        const completedPeriods = enhancedPeriods.filter(p => 
-          p.status === 'เสร็จสิ้น' || 
-          p.status === 'completed' || 
-          p.status === 'COMPLETED'
-        ).length;
-        const overduePeriods = enhancedPeriods.filter(p => {
-          const dueDate = new Date(p.due_date);
-          const isCompleted = p.status === 'เสร็จสิ้น' || 
-                             p.status === 'completed' || 
-                             p.status === 'COMPLETED';
-          return !isCompleted && dueDate < new Date();
-        }).length;
-        const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
-        const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
-        
-        // Calculate upcoming deadlines (next 7 days) with contract names
-        const currentDate = new Date();
-        const upcomingDeadlines7Days = enhancedPeriods.filter(p => {
-          const dueDate = new Date(p.due_date);
-          const diffTime = dueDate - currentDate;
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          return diffDays >= 0 && diffDays <= 7 && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
-        }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-          .slice(0, 5)
-          .map(p => ({
-            ...p,
-            contract: contracts.find(c => c.id === p.contract_id)
-          }));
-        
-        setStats({
-          totalContracts,
-          activeContracts,
-          completedContracts,
-          cancelledContracts,
-          pendingContracts,
-          expiredContracts,
-          totalPeriods: allPeriods.length,
-          pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
-          inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
-          completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
-          upcomingDeadlines,
-          recentContracts
-        });
+          
+          // Enhance periods with contract information
+          const enhancedPeriods = allPeriods.map(period => {
+            const matchedContract = contractsMap[period.contract_id];
+            const contractTitle = getContractTitle(matchedContract);
+            
+            
+            return {
+              ...period,
+              contract_title: contractTitle,
+              contract_no: matchedContract?.contract_no || matchedContract?.number || 'N/A',
+              contract_department: matchedContract?.department || matchedContract?.dept || 'N/A'
+            };
+          });
+          
+          
+          // Calculate period stats using enhanced periods
+          const totalPeriods = enhancedPeriods.length;
+          const completedPeriods = enhancedPeriods.filter(p => 
+            p.status === 'เสร็จสิ้น' || 
+            p.status === 'completed' || 
+            p.status === 'COMPLETED'
+          ).length;
+          const overduePeriods = enhancedPeriods.filter(p => {
+            const dueDate = new Date(p.due_date);
+            const isCompleted = p.status === 'เสร็จสิ้น' || 
+                               p.status === 'completed' || 
+                               p.status === 'COMPLETED';
+            return !isCompleted && dueDate < new Date();
+          }).length;
+          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
+          const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
+          
+          // Calculate upcoming deadlines (next 7 days) with contract names
+          const currentDate = new Date();
+          const upcomingDeadlines7Days = enhancedPeriods.filter(p => {
+            const dueDate = new Date(p.due_date);
+            const diffTime = dueDate - currentDate;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays <= 7 && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
+          }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+            .slice(0, 5)
+            .map(p => ({
+              ...p,
+              contract: contracts.find(c => c.id === p.contract_id)
+            }));
+          
+          setStats({
+            totalContracts,
+            activeContracts,
+            completedContracts,
+            cancelledContracts,
+            pendingContracts,
+            expiredContracts,
+            totalPeriods: allPeriods.length,
+            pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
+            inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
+            completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
+            upcomingDeadlines,
+            recentContracts
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('ไม่สามารถโหลดข้อมูลแดชบอร์ดได้');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('ไม่สามารถโหลดข้อมูลแดชบอร์ดได้');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchDashboardData();
+  }, [authFetch, token]);
 
   const formatDateThai = (dateStr) => {
     if (!dateStr) return '-';
@@ -338,7 +337,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="p-2 bg-red-100 rounded-lg">
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
@@ -404,7 +403,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="p-2 bg-red-100 rounded-lg">
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
