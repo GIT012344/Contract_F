@@ -138,9 +138,7 @@ export default function ContractDetailPage() {
   const { token, user, authFetch } = useAuth();
   const [contract, setContract] = useState(null);
   const [periods, setPeriods] = useState([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState(null);
   const [periodModal, setPeriodModal] = useState({ open: false, initial: null });
   const [showEditModal, setShowEditModal] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState("");
@@ -168,7 +166,6 @@ export default function ContractDetailPage() {
 
   useEffect(() => {
     const loadContract = async () => {
-      setLoading(true);
       try {
         const res = await authFetch(`/api/contracts/${id}`);
         if (res.ok) {
@@ -179,8 +176,6 @@ export default function ContractDetailPage() {
         }
       } catch (err) {
         setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-      } finally {
-        setLoading(false);
       }
     };
 

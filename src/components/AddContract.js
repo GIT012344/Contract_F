@@ -20,18 +20,8 @@ function validateEmails(emailString) {
 
 // Period Modal Component
 function PeriodModal({ open, onClose, onSave, initial }) {
-  const formatDateForInput = (dateStr) => {
-    if (!dateStr) return '';
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
-  const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
+  const [dueDate, setDueDate] = useState(initial?.dueDate || initial?.due_date);
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
   const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
   const [error, setError] = useState('');
@@ -39,7 +29,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 
   useEffect(() => {
     setNumber(initial?.periodNo || initial?.period_no || '');
-    setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
+    setDueDate(initial?.dueDate || initial?.due_date);
     setAlertDays(initial?.alert_days ?? 0);
     setStatus(initial?.status || 'รอดำเนินการ');
     setError('');
@@ -61,7 +51,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           {initial ? 'แก้ไข' : 'เพิ่ม'} งวดงาน
         </h3>
         <div className="mb-3">
-          <label className="block text-sm font-semibold mb-1">เลขงวด</label>
+          <label className="block text-sm font-semibold mb-1">รหัสงวดงาน</label>
           <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="เช่น 1" />
         </div>
         <div className="mb-3">
@@ -139,19 +129,13 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       };
     }
     
-    // แปลงวันที่จาก backend format เป็น input date format
-    const formatDateForInput = (dateStr) => {
-      if (!dateStr) return "";
-      return dateStr.split('T')[0];
-    };
-    
     return {
       contractNo: initial.contract_no || initial.contractNo || "",
-      contractDate: formatDateForInput(initial.contract_date || initial.contractDate) || "",
+      contractDate: initial.contract_date || initial.contractDate || "",
       contactName: initial.contact_name || initial.contactName || "",
       department: initial.department || "",
-      startDate: formatDateForInput(initial.start_date || initial.startDate) || "",
-      endDate: formatDateForInput(initial.end_date || initial.endDate) || "",
+      startDate: initial.start_date || initial.startDate || "",
+      endDate: initial.end_date || initial.endDate || "",
       remark1: initial.remark1 || "",
       remark2: initial.remark2 || "",
       remark3: initial.remark3 || "",
@@ -213,7 +197,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
     };
     
     loadPeriods();
-  }, [contractId, initial]);
+  }, [contractId, initial, authFetch]);
   
   // Check if department is custom after departments are loaded
   useEffect(() => {

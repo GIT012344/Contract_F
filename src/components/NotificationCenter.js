@@ -1,49 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
 
 export default function NotificationCenter() {
-  const { authFetch, token } = useAuth();
+  const { authFetch } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    fetchNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(fetchNotifications, 5 * 60 * 1000); // Check every 5 minutes
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  const fetchNotifications = async () => {
-    if (!token) return;
-    
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       
       // Fetch contracts first, then periods from each contract
-      const contractsRes = await authFetch('/api/contracts', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }, token);
+      const contractsRes = await authFetch('/api/contracts');
       if (contractsRes.ok) {
         const contracts = await contractsRes.json();
         
         // Fetch periods from each contract individually
         const periodPromises = contracts.map(contract =>
-          authFetch(`/api/contracts/${contract.id}/periods`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }, token)
+          authFetch(`/api/contracts/${contract.id}/periods`)
             .then(res => (res.ok ? res.json() : []))
             .catch(() => [])
         );
@@ -53,12 +30,7 @@ export default function NotificationCenter() {
         // Fallback to /api/periods if no periods found
         if (periods.length === 0 && contracts.length > 0) {
           try {
-            const fallbackRes = await authFetch('/api/periods', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }, token);
+            const fallbackRes = await authFetch('/api/periods');
             if (fallbackRes.ok) {
               const fallbackPeriods = await fallbackRes.json();
               periods = fallbackPeriods;
@@ -179,7 +151,16 @@ export default function NotificationCenter() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authFetch]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000); // Check every 5 minutes
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
 
   const getDaysUntilDeadline = (dateStr) => {
     const today = new Date();

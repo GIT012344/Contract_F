@@ -3,11 +3,9 @@ import Layout from '../components/Layout';
 import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
 import { getAuthMethodBadge, getAuthMethodDisplay } from '../utils/jwtUtils';
-import { useNavigate } from 'react-router-dom';
 
 export default function SettingsPage() {
-  const navigate = useNavigate();
-  const { user, token, authFetch, role } = useAuth();
+  const { user, authFetch, role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   
@@ -44,7 +42,7 @@ export default function SettingsPage() {
         setLoading(true);
         
         // Fetch user profile
-        const profileRes = await authFetch('/api/users/profile', {}, token);
+        const profileRes = await authFetch('/api/users/profile');
         if (profileRes.ok) {
           const profile = await profileRes.json();
           setProfileData(prev => ({
@@ -55,7 +53,7 @@ export default function SettingsPage() {
         }
         
         // Fetch notification settings
-        const notifRes = await authFetch('/api/settings/notifications', {}, token);
+        const notifRes = await authFetch('/api/settings/notifications');
         if (notifRes.ok) {
           const settings = await notifRes.json();
           setNotificationSettings(prev => ({ ...prev, ...settings }));
@@ -63,7 +61,7 @@ export default function SettingsPage() {
         
         // Fetch system settings (admin only)
         if (role === 'admin') {
-          const systemRes = await authFetch('/api/settings/system', {}, token);
+          const systemRes = await authFetch('/api/settings/system');
           if (systemRes.ok) {
             const settings = await systemRes.json();
             setSystemSettings(prev => ({ ...prev, ...settings }));
@@ -78,7 +76,7 @@ export default function SettingsPage() {
     };
 
     fetchSettings();
-  }, [authFetch, token]);
+  }, [authFetch, role]);
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -104,7 +102,7 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
-      }, token);
+      });
       
       if (res.ok) {
         toast.success('อัปเดตข้อมูลส่วนตัวสำเร็จ');
@@ -136,7 +134,7 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notificationSettings)
-      }, token);
+      });
       
       if (res.ok) {
         toast.success('อัปเดตการตั้งค่าการแจ้งเตือนสำเร็จ');
@@ -161,7 +159,7 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(systemSettings)
-      }, token);
+      });
       
       if (res.ok) {
         toast.success('อัปเดตการตั้งค่าระบบสำเร็จ');

@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { user, authFetch, token, role } = useAuth();
+  const { authFetch } = useAuth();
+  const [contracts, setContracts] = useState([]);
   const [stats, setStats] = useState({
     totalContracts: 0,
     activeContracts: 0,
@@ -158,19 +159,16 @@ export default function DashboardPage() {
           const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
           const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
           
-          // Calculate upcoming deadlines (next 7 days) with contract names
-          const currentDate = new Date();
-          const upcomingDeadlines7Days = enhancedPeriods.filter(p => {
-            const dueDate = new Date(p.due_date);
-            const diffTime = dueDate - currentDate;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays >= 0 && diffDays <= 7 && (p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ' || p.status === 'กำลังดำเนินการ');
-          }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-            .slice(0, 5)
-            .map(p => ({
-              ...p,
-              contract: contracts.find(c => c.id === p.contract_id)
-            }));
+          // คำนวณสถิติเพิ่มเติม
+          const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
+          const expiredContracts = contracts.filter(c => c.status === 'EXPIRED').length;
+          
+          // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
+          const upcomingPeriods = allPeriods.filter(p => {
+            if (p.status === 'เสร็จสิ้น' || !p.due_date) return false;
+            const daysUntilDue = Math.ceil((new Date(p.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+            return daysUntilDue >= 0 && daysUntilDue <= 7;
+          });
           
           setStats({
             totalContracts,
@@ -196,7 +194,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [authFetch, token]);
+  }, [authFetch]);
 
   const formatDateThai = (dateStr) => {
     if (!dateStr) return '-';
@@ -438,23 +436,6 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">ดูรายการสัญญาทั้งหมด</p>
                 </div>
               </button>
-              
-              {role === 'admin' && (
-                <button
-                  onClick={() => navigate('/contracts?action=add')}
-                  className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
-                >
-                  <div className="p-2 bg-green-100 rounded">
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">เพิ่มสัญญาใหม่</p>
-                    <p className="text-sm text-gray-500">สร้างสัญญาใหม่ในระบบ</p>
-                  </div>
-                </button>
-              )}
             </div>
           </div>
 

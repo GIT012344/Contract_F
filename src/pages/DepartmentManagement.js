@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiEdit2, FiTrash2, FiPlus, FiUsers, FiFileText, FiArrowLeft } from 'react-icons/fi';
 
 const DepartmentManagement = () => {
-  const { authFetch, user } = useAuth();
+  const { authFetch } = useAuth();
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,10 +23,19 @@ const DepartmentManagement = () => {
 
   // ตรวจสอบสิทธิ์ admin
   useEffect(() => {
-    if (user?.role !== 'admin') {
-      window.location.href = '/dashboard';
-    }
-  }, [user]);
+    const checkAuth = async () => {
+      try {
+        const response = await authFetch('/api/users/me');
+        const userData = await response.json();
+        if (userData.role !== 'admin') {
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        navigate('/dashboard');
+      }
+    };
+    checkAuth();
+  }, [authFetch, navigate]);
 
   // โหลดรายการแผนก
   const fetchDepartments = async () => {
@@ -44,7 +53,7 @@ const DepartmentManagement = () => {
 
   useEffect(() => {
     fetchDepartments();
-  }, []);
+  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // เปิด modal สำหรับเพิ่ม/แก้ไข
   const openModal = (department = null) => {

@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../AuthContext';
 import { exportSummaryToCSV, generateSummaryReport } from '../utils/exportUtils';
 import { printSummaryReport } from '../utils/printUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
 
 export default function ReportsPage() {
-  const navigate = useNavigate();
-  const { user, authFetch, role } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { authFetch } = useAuth();
   const [contracts, setContracts] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [dateRange, setDateRange] = useState({
@@ -19,19 +16,12 @@ export default function ReportsPage() {
   });
   const [reportData, setReportData] = useState(null);
 
-  const generateReport = useCallback(() => {
+  const generateReport = () => {
     const startDate = new Date(dateRange.startDate);
     const endDate = new Date(dateRange.endDate);
     
     // Filter contracts by department for regular users
     let filteredContracts = contracts;
-    if (role !== 'admin') {
-      // Regular users see only their department's contracts
-      filteredContracts = contracts.filter(contract => 
-        contract.department === role || 
-        contract.department_name === role
-      );
-    }
     
     // Filter periods for the filtered contracts
     const contractIds = filteredContracts.map(c => c.id);
@@ -112,13 +102,11 @@ export default function ReportsPage() {
       contracts: filteredContracts,
       periods: filteredPeriods
     });
-  }, [contracts, periods, dateRange, role]);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
-        
         const [contractsRes, periodsRes] = await Promise.all([
           authFetch('/api/contracts'),
           authFetch('/api/periods')
@@ -136,8 +124,6 @@ export default function ReportsPage() {
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('ไม่สามารถโหลดข้อมูลได้');
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -148,7 +134,7 @@ export default function ReportsPage() {
     if (contracts.length > 0 || periods.length > 0) {
       generateReport();
     }
-  }, [contracts, periods, dateRange, generateReport]);
+  }, [contracts, periods, dateRange]);
 
   const handleExportReport = () => {
     if (!reportData) return;
@@ -165,37 +151,26 @@ export default function ReportsPage() {
     printSummaryReport(summaryData);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'ACTIVE': return 'text-green-600 bg-green-100';
-      case 'PENDING':
-      case 'CRTD': return 'text-blue-600 bg-blue-100';
-      case 'COMPLETED': return 'text-green-600 bg-green-100';
-      case 'CANCELLED':
-      case 'DELETED': return 'text-red-600 bg-red-100';
-      case 'รอดำเนินการ': return 'text-yellow-600 bg-yellow-100';
-      case 'กำลังดำเนินการ': return 'text-blue-600 bg-blue-100';
-      case 'เสร็จสิ้น': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
+  const stats = useMemo(() => {
+    const total = contracts.length;
+    if (total === 0) return null;
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'ACTIVE': return 'ใช้งานอยู่';
-      case 'PENDING': return 'รอดำเนินการ';
-      case 'CRTD': return 'สร้างใหม่';
-      case 'COMPLETED': return 'เสร็จสิ้น';
-      case 'CANCELLED': return 'ยกเลิก';
-      case 'DELETED': return 'ลบแล้ว';
-      case 'รอดำเนินการ': return 'รอดำเนินการ';
-      case 'กำลังดำเนินการ': return 'กำลังดำเนินการ';
-      case 'เสร็จสิ้น': return 'เสร็จสิ้น';
-      default: return status;
-    }
-  };
+    const statusCounts = contracts.reduce((acc, c) => {
+      acc[c.status] = (acc[c.status] || 0) + 1;
+      return acc;
+    }, {});
 
-  if (loading) {
+    return {
+      total,
+      active: statusCounts['ACTIVE'] || 0,
+      expired: statusCounts['EXPIRED'] || 0,
+      completed: statusCounts['COMPLETED'] || 0,
+      cancelled: statusCounts['CANCELLED'] || 0,
+      created: statusCounts['CRTD'] || 0
+    };
+  }, [contracts]);
+
+  if (!contracts.length || !periods.length) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-96">
