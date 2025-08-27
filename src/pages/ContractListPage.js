@@ -284,13 +284,20 @@ export default function ContractListPage() {
     }
   };
 
-  const handleAddSuccess = () => {
-    setShowCreateModal(false);
-    setLoading(true);
-    authFetch('/api/contracts')  
-      .then(async res => res.ok ? res.json() : [])
-      .then(setContracts)
-      .finally(() => setLoading(false));
+  const handleAddSuccess = async () => {
+    try {
+      setLoading(true);
+      const response = await authFetch('/api/contracts');
+      if (response.ok) {
+        const data = await response.json();
+        setContracts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching contracts:', error);
+    } finally {
+      setLoading(false);
+      setShowCreateModal(false);
+    }
   };
 
   const handleFilterChange = (e) => {

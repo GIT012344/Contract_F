@@ -103,7 +103,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 }
 
 export default function AddContract({ onSuccess, onClose, initial }) {
-  const { authFetch, user, token } = useAuth();  
+  const { authFetch, user } = useAuth();  
   const role = user?.role;
   const userDepartment = user?.department || user?.department_id; // Try both fields
   const [departments, setDepartments] = useState([]);
@@ -341,7 +341,14 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       });
       if (res.ok) {
         toast.success(isEdit ? 'แก้ไขสัญญาสำเร็จ' : 'เพิ่มสัญญาสำเร็จ');
-        if (onSuccess) onSuccess();
+        // เรียก onSuccess callback เพื่อ refresh รายการ
+        if (onSuccess && typeof onSuccess === 'function') {
+          await onSuccess();
+        }
+        // ปิด modal หลังจาก refresh เสร็จ
+        if (onClose && typeof onClose === 'function') {
+          onClose();
+        }
       } else {
         let errMsg = 'บันทึกข้อมูลไม่สำเร็จ';
         try {
