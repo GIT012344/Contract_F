@@ -20,18 +20,8 @@ function validateEmails(emailString) {
 
 // Period Modal Component
 function PeriodModal({ open, onClose, onSave, initial }) {
-  const formatDateForInput = (dateStr) => {
-    if (!dateStr) return '';
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
-  const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
+  const [dueDate, setDueDate] = useState(initial?.dueDate || initial?.due_date);
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
   const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
   const [error, setError] = useState('');
@@ -39,7 +29,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 
   useEffect(() => {
     setNumber(initial?.periodNo || initial?.period_no || '');
-    setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
+    setDueDate(initial?.dueDate || initial?.due_date);
     setAlertDays(initial?.alert_days ?? 0);
     setStatus(initial?.status || 'รอดำเนินการ');
     setError('');
@@ -56,79 +46,46 @@ function PeriodModal({ open, onClose, onSave, initial }) {
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60] animate-fadein" onClick={handleOverlayClick}>
       <div className="bg-white p-6 rounded-2xl shadow-xl w-80 relative animate-popin">
         <button className="absolute right-2 top-2 text-gray-400 text-2xl hover:text-gray-600" onClick={onClose}>×</button>
-        <h2 className="text-xl font-bold mb-4">{initial ? 'แก้ไขงวดงาน' : 'เพิ่มงวดงาน'}</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">รหัสงวด <span className="text-red-500">*</span></label>
-            <input
-              ref={inputRef}
-              type="text"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="ระบุรหัสงวด (เช่น P1, งวด1, Phase-1)"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">วันที่กำหนดส่ง</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">แจ้งเตือนล่วงหน้า (วัน)</label>
-            <input
-              type="number"
-              min="0"
-              value={alertDays}
-              onChange={(e) => setAlertDays(Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="0 = ไม่แจ้งเตือน"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">สถานะ</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="รอดำเนินการ">รอดำเนินการ</option>
-              <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
-              <option value="เสร็จสิ้น">เสร็จสิ้น</option>
-            </select>
-          </div>
-          {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
-          <div className="flex gap-2 mt-4">
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1"
-              onClick={() => {
-                if (!number || number.trim() === '') {
-                  setError('กรุณาระบุรหัสงวด');
-                  return;
-                }
-                const saveData = {
-                  period_no: number.trim(),  // เปลี่ยนจาก Number(number) เป็น string
-                  due_date: dueDate,
-                  alert_days: alertDays,
-                  status,
-                  id: initial?.id || `temp_${Date.now()}`
-                };
-                onSave(saveData);
-              }}
-            >
-              บันทึก
-            </button>
-            <button
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold shadow transition flex-1"
-              onClick={onClose}
-            >
-              ยกเลิก
-            </button>
-          </div>
+        <h3 className="font-bold mb-4 text-lg text-blue-700 flex items-center gap-2">
+          <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
+          {initial ? 'แก้ไข' : 'เพิ่ม'} งวดงาน
+        </h3>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">รหัสงวด</label>
+          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value)} placeholder="เช่น A1, B2, 001" />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>
+          <input type="date" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={dueDate || ''} onChange={e => setDueDate(e.target.value)} />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">แจ้งเตือนล่วงหน้า (วัน)</label>
+          <input type="number" min="0" className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={alertDays} onChange={e => setAlertDays(Number(e.target.value))} placeholder="0 = ไม่แจ้งเตือน" />
+        </div>
+        <div className="mb-3">
+          <label className="block text-sm font-semibold mb-1">สถานะ</label>
+          <select className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="รอดำเนินการ">รอดำเนินการ</option>
+            <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+            <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+          </select>
+        </div>
+        {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
+        <div className="flex gap-2 mt-4">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={() => {
+            if (!number || !dueDate) { setError('กรุณากรอกข้อมูลให้ครบ'); return; }
+            const saveData = { 
+              period_no: number, 
+              due_date: dueDate, 
+              alert_days: alertDays, 
+              status,
+              id: initial?.id || `temp_${Date.now()}`
+            };
+            onSave(saveData);
+          }}>
+            บันทึก
+          </button>
+          <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold shadow transition flex-1" onClick={onClose}>ยกเลิก</button>
         </div>
       </div>
     </div>
@@ -136,7 +93,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 }
 
 export default function AddContract({ onSuccess, onClose, initial }) {
-  const { authFetch, user, token } = useAuth();
+  const { authFetch, user } = useAuth();  
   const role = user?.role;
   const userDepartment = user?.department || user?.department_id; // Try both fields
   const [departments, setDepartments] = useState([]);
@@ -148,7 +105,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
   const [periods, setPeriods] = useState([]);
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
-
+  
   // Get contract ID from initial data when editing
   const contractId = initial?.id || initial?.contract_id;
 
@@ -171,7 +128,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         status: "CRTD"
       };
     }
-
+    
     return {
       contractNo: initial.contract_no || initial.contractNo || "",
       contractDate: initial.contract_date || initial.contractDate || "",
@@ -187,9 +144,9 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       status: initial.status || "CRTD"
     };
   };
-
+  
   const [form, setForm] = useState(() => getInitialFormData());
-
+  
   // Load departments on mount
   useEffect(() => {
     const fetchDepartments = async () => {
@@ -214,7 +171,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       fetchDepartments();
     }
   }, [role, authFetch]);
-
+  
   // Load existing periods when editing
   useEffect(() => {
     const loadPeriods = async () => {
@@ -238,10 +195,10 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         }
       }
     };
-
+    
     loadPeriods();
   }, [contractId, initial, authFetch]);
-
+  
   // Check if department is custom after departments are loaded
   useEffect(() => {
     if (initial && initial.department && departments.length > 0) {
@@ -331,7 +288,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       return;
     }
     const isEdit = !!initial;
-
+    
     // แปลงข้อมูลจาก camelCase เป็น snake_case สำหรับ backend
     const payload = {
       contract_no: form.contractNo,
@@ -348,7 +305,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       status: form.status,
       periods: periods // Include periods in payload
     };
-
+    
     let res;
     try {
       res = await authFetch(isEdit ? `/api/contracts/${initial.id}` : '/api/contracts', {
@@ -359,10 +316,12 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const result = await res.json();
+        const responseData = await res.json();
         toast.success(isEdit ? 'แก้ไขสัญญาสำเร็จ' : 'เพิ่มสัญญาสำเร็จ');
         if (onSuccess) {
-          onSuccess(result);
+          onSuccess(responseData);
+        }
+        if (onClose) {
           onClose();
         }
       } else {
@@ -495,7 +454,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
                 <div className="space-y-2 mb-3">
                   {periods.map((period, idx) => (
                     <div key={period.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                      <span className="text-sm">รหัสงวด {period.period_no} - {period.due_date}</span>
+                      <span className="text-sm">งวดที่ {period.period_no} - {period.due_date}</span>
                       <div className="flex gap-1">
                         <button
                           type="button"

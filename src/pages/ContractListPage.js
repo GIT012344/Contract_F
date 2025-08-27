@@ -62,6 +62,21 @@ export default function ContractListPage() {
     if (token) fetchDepartments();
   }, [token]);
 
+  const handleAddSuccess = (newContract) => {
+    setShowCreateModal(false);
+    if (newContract) {
+      // Add the new contract to the list immediately
+      setContracts(prevContracts => [newContract, ...prevContracts]);
+    } else {
+      // Fallback: fetch all contracts if no data returned
+      setLoading(true);
+      authFetch('/api/contracts')  
+        .then(async res => res.ok ? res.json() : [])
+        .then(setContracts)
+        .finally(() => setLoading(false));
+    }
+  };
+
   const loadContracts = useCallback(() => {
     if (!token) return;
     
@@ -282,21 +297,6 @@ export default function ContractListPage() {
     }
   };
 
-  const handleAddSuccess = async () => {
-    try {
-      setLoading(true);
-      const response = await authFetch('/api/contracts');
-      if (response.ok) {
-        const data = await response.json();
-        setContracts(data);
-      }
-    } catch (error) {
-      console.error('Error fetching contracts:', error);
-    } finally {
-      setLoading(false);
-      setShowCreateModal(false);
-    }
-  };
 
   const handleFilterChange = (e) => {
     setFilters((prevFilters) => ({ ...prevFilters, [e.target.name]: e.target.value }));
