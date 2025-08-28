@@ -36,6 +36,7 @@ export default function DashboardPage() {
           const today = new Date();
           // คำนวณสถิติสัญญา
           const totalContracts = contracts.length;
+          const crtdContracts = contracts.filter(c => c.status === 'CRTD').length;
           const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
           const deletedContracts = contracts.filter(c => c.status === 'DELETED').length;
           // Removed pending status
@@ -151,15 +152,15 @@ export default function DashboardPage() {
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
           const upcomingPeriods = allPeriods.filter(p => {
             if (p.status === 'เสร็จสิ้น' || !p.due_date) return false;
-            const daysUntilDue = Math.ceil((new Date(p.due_date) - new Date()) / (1000 * 60 * 60 * 24));
             return daysUntilDue >= 0 && daysUntilDue <= 7;
           });
           
           setStats({
             totalContracts,
+            crtdContracts,
             activeContracts,
-            deletedContracts,
             expiredContracts,
+            deletedContracts,
             totalPeriods: allPeriods.length,
             pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
             inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
@@ -244,6 +245,21 @@ export default function DashboardPage() {
                 <div className="p-2 bg-gray-100 rounded-lg">
                   <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">สร้างใหม่</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.crtdContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.crtdContracts / stats.totalContracts) * 100) : 0}%)</p>
+                </div>
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                 </div>
               </div>

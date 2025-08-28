@@ -61,8 +61,8 @@ function PeriodModal({ open, onClose, onSave, initial }) {
           {initial ? 'แก้ไข' : 'เพิ่ม'} งวดงาน
         </h3>
         <div className="mb-3">
-          <label className="block text-sm font-semibold mb-1">เลขงวด</label>
-          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="เช่น 1" />
+          <label className="block text-sm font-semibold mb-1">รหัสงวด</label>
+          <input ref={inputRef} className="border rounded w-full p-2 focus:ring-2 focus:ring-blue-400" value={number} onChange={e => setNumber(e.target.value)} placeholder="เช่น P001, 1, KAB200" />
         </div>
         <div className="mb-3">
           <label className="block text-sm font-semibold mb-1">วันที่กำหนดส่ง</label>

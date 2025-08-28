@@ -504,16 +504,17 @@ export default function ContractDetailPage() {
             body: JSON.stringify(periodData)
           });
           if (res.ok) {
+            const savedPeriod = await res.json();
             toast.success(isEdit ? 'แก้ไขงวดงานสำเร็จ' : 'เพิ่มงวดงานสำเร็จ');
             setPeriodModal({ open: false, initial: null });
             const newPeriods = [...periods];
             if (isEdit) {
               const index = newPeriods.findIndex(period => period.id === periodId);
               if (index !== -1) {
-                newPeriods[index] = { ...newPeriods[index], ...periodData };
+                newPeriods[index] = savedPeriod;
               }
             } else {
-              newPeriods.push({ id: Math.floor(Math.random() * 1000000), ...periodData });
+              newPeriods.push(savedPeriod);
             }
             setPeriods(newPeriods);
           } else {

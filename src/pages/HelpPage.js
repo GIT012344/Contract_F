@@ -90,7 +90,7 @@ export default function HelpPage() {
               <p className="text-gray-600">2. คลิกปุ่ม "เพิ่มงวด"</p>
               <p className="text-gray-600">3. กรอกข้อมูลงวดงาน:</p>
               <ul className="list-disc list-inside ml-4 space-y-1 text-gray-600">
-                <li>หมายเลขงวด</li>
+                <li>รหัสงวด</li>
                 <li>วันที่กำหนดส่ง</li>
                 <li>จำนวนวันแจ้งเตือนล่วงหน้า</li>
                 <li>สถานะงวด</li>
