@@ -437,7 +437,6 @@ export default function ContractListPage() {
               >
                 <option value="">ทั้งหมด</option>
                 <option value="ACTIVE">ใช้งาน (Active)</option>
-                <option value="PENDING">รอดำเนินการ (Pending)</option>
                 <option value="COMPLETED">เสร็จสิ้น (Completed)</option>
                 <option value="CANCELLED">ยกเลิก (Cancelled)</option>
                 <option value="CRTD">สร้างใหม่ (Created)</option>
@@ -644,7 +643,6 @@ export default function ContractListPage() {
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             c.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
                             c.status === 'EXPIRED' || c.status === 'EXPIRE' || (c.end_date && new Date(c.end_date) < new Date()) ? 'bg-red-100 text-red-800' :
-                            c.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
                             c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'bg-blue-100 text-blue-800' :
                             c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'bg-gray-100 text-gray-800' :
                             c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'bg-purple-100 text-purple-800' :
@@ -653,7 +651,6 @@ export default function ContractListPage() {
                           }`}>
                             {c.status === 'ACTIVE' ? 'ใช้งาน' :
                              c.status === 'EXPIRED' || c.status === 'EXPIRE' || (c.end_date && new Date(c.end_date) < new Date()) ? 'หมดอายุ' :
-                             c.status === 'PENDING' ? 'รอดำเนินการ' :
                              c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'เสร็จสิ้น' :
                              c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'ยกเลิก' :
                              c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'สร้างใหม่' :

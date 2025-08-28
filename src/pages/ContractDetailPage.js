@@ -23,7 +23,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
   const [number, setNumber] = useState(initial?.periodNo || initial?.period_no || '');
   const [dueDate, setDueDate] = useState(formatDateForInput(initial?.dueDate || initial?.due_date));
   const [alertDays, setAlertDays] = useState(initial?.alert_days ?? 0);
-  const [status, setStatus] = useState(initial?.status || 'รอดำเนินการ');
+  const [status, setStatus] = useState(initial?.status || 'กำลังดำเนินการ');
   const [error, setError] = useState('');
   const inputRef = useRef();
 
@@ -31,7 +31,7 @@ function PeriodModal({ open, onClose, onSave, initial }) {
     setNumber(initial?.periodNo || initial?.period_no || '');
     setDueDate(formatDateForInput(initial?.dueDate || initial?.due_date));
     setAlertDays(initial?.alert_days ?? 0);
-    setStatus(initial?.status || 'รอดำเนินการ');
+    setStatus(initial?.status || 'กำลังดำเนินการ');
     setError('');
     if (open && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -72,7 +72,6 @@ function PeriodModal({ open, onClose, onSave, initial }) {
             onChange={e => setStatus(e.target.value)}
             aria-label="สถานะงวดงาน"
           >
-            <option value="รอดำเนินการ">รอดำเนินการ</option>
             <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
             <option value="เสร็จสิ้น">เสร็จสิ้น</option>
           </select>
@@ -357,7 +356,7 @@ export default function ContractDetailPage() {
               <table className="w-full text-sm md:text-base">
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-200 via-blue-100 to-blue-200 text-blue-900 text-base">
-                    <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" /></svg>เลขงวด</span></th>
+                    <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" /></svg>รหัสงวด</span></th>
                     <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>วันที่กำหนดส่ง</span></th>
                     <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" /></svg>แจ้งเตือนล่วงหน้า</span></th>
                     <th className="p-4 font-bold text-center">สถานะ</th>

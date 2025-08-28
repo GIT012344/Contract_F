@@ -36,7 +36,7 @@ export default function ReportsPage() {
       cancelledContracts: filteredContracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length,
       
       totalPeriods: filteredPeriods.length,
-      pendingPeriods: filteredPeriods.filter(p => ['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
+      pendingPeriods: filteredPeriods.filter(p => ['รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
       completedPeriods: filteredPeriods.filter(p => 
         p.status === 'เสร็จสิ้น' || 
         p.status === 'completed' || 
@@ -306,7 +306,7 @@ export default function ReportsPage() {
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดที่รอดำเนินการ</dt>
+                        <dt className="text-sm font-medium text-gray-500 truncate">งวดที่รอส่งมอบ</dt>
                         <dd className="text-lg font-medium text-gray-900">{reportData.pendingPeriods}</dd>
                       </dl>
                     </div>
@@ -360,7 +360,6 @@ export default function ReportsPage() {
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">รอดำเนินการ</dt>
                         <dd className="text-lg font-medium text-gray-900">{reportData.pendingContracts}</dd>
                       </dl>
                     </div>
@@ -448,7 +447,6 @@ export default function ReportsPage() {
                 <div className="space-y-3">
                   {[
                     { key: 'activeContracts', label: 'ใช้งานอยู่', color: 'green' },
-                    { key: 'pendingContracts', label: 'รอดำเนินการ', color: 'yellow' },
                     { key: 'completedContracts', label: 'เสร็จสิ้น', color: 'blue' },
                     { key: 'cancelledContracts', label: 'ยกเลิก', color: 'red' }
                   ].map(item => (
@@ -474,7 +472,7 @@ export default function ReportsPage() {
                 <h3 className="text-lg font-medium text-gray-900 mb-4">สถานะงวดงาน</h3>
                 <div className="space-y-3">
                   {[
-                    { key: 'pendingPeriods', label: 'รอดำเนินการ', color: 'yellow' },
+                    { key: 'pendingPeriods', label: 'รอส่งมอบ', color: 'yellow' },
                     { key: 'completedPeriods', label: 'เสร็จสิ้น', color: 'green' },
                     { key: 'overduePeriods', label: 'เกินกำหนด', color: 'red' }
                   ].map(item => (
@@ -508,7 +506,6 @@ export default function ReportsPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ทั้งหมด</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ใช้งานอยู่</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รอดำเนินการ</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เสร็จสิ้น</th>
                       </tr>
                     </thead>

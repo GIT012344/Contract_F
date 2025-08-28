@@ -95,7 +95,7 @@ export default function NotificationCenter() {
         const upcomingDeadlines = enhancedPeriods
           .filter(period => {
             // Check for pending or in-progress periods
-            if (!['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
+            if (!['รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
             
             const dueDate = new Date(period.due_date);
             const alertDate = new Date(dueDate);
@@ -118,7 +118,7 @@ export default function NotificationCenter() {
         const overduePeriods = enhancedPeriods
           .filter(period => {
             // Check for overdue periods that are not completed
-            if (!['รอดำเนินการ', 'รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
+            if (!['รอส่งมอบ', 'กำลังดำเนินการ'].includes(period.status)) return false;
             const dueDate = new Date(period.due_date);
             return now > dueDate;
           })

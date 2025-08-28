@@ -39,7 +39,7 @@ export default function DashboardPage() {
           const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
           const completedContracts = contracts.filter(c => c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น').length;
           const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'ยกเลิก' || c.status === 'DELETED').length;
-          const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'รอดำเนินการ').length;
+          // Removed pending status
           const expiredContracts = contracts.filter(c => 
             c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
           ).length;
@@ -146,7 +146,7 @@ export default function DashboardPage() {
                                p.status === 'COMPLETED';
             return !isCompleted && dueDate < new Date();
           }).length;
-          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
+          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอส่งมอบ').length;
           const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
           
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
@@ -161,7 +161,7 @@ export default function DashboardPage() {
             activeContracts,
             completedContracts,
             cancelledContracts,
-            pendingContracts,
+            // pendingContracts removed
             expiredContracts,
             totalPeriods: allPeriods.length,
             pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
@@ -262,21 +262,6 @@ export default function DashboardPage() {
                 <div className="p-2 bg-green-100 rounded-lg">
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">รอดำเนินการ</p>
-                  <p className="text-2xl font-bold text-yellow-600">{stats.pendingContracts}</p>
-                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.pendingContracts / stats.totalContracts) * 100) : 0}%)</p>
-                </div>
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>

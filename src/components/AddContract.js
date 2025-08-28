@@ -596,7 +596,6 @@ export default function AddContract({ onSuccess, onClose, initial }) {
               className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition"
             >
               <option value="CRTD">สร้างใหม่</option>
-              <option value="PENDING">รอดำเนินการ</option>
               <option value="ACTIVE">ใช้งาน</option>
               <option value="COMPLETED">เสร็จสิ้น</option>
               <option value="CANCELLED">ยกเลิก</option>
