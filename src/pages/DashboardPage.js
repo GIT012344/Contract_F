@@ -37,8 +37,7 @@ export default function DashboardPage() {
           // คำนวณสถิติสัญญา
           const totalContracts = contracts.length;
           const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
-          const completedContracts = contracts.filter(c => c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น').length;
-          const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'ยกเลิก' || c.status === 'DELETED').length;
+          const deletedContracts = contracts.filter(c => c.status === 'DELETED').length;
           // Removed pending status
           const expiredContracts = contracts.filter(c => 
             c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
@@ -159,15 +158,13 @@ export default function DashboardPage() {
           setStats({
             totalContracts,
             activeContracts,
-            completedContracts,
-            cancelledContracts,
-            // pendingContracts removed
+            deletedContracts,
             expiredContracts,
             totalPeriods: allPeriods.length,
             pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
             inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
             completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
-            upcomingDeadlines,
+            upcomingDeadlines: upcomingPeriods,
             recentContracts
           });
         }
@@ -270,28 +267,13 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">เสร็จสิ้น</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.completedContracts}</p>
-                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.completedContracts / stats.totalContracts) * 100) : 0}%)</p>
-                </div>
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">ยกเลิก</p>
-                  <p className="text-2xl font-bold text-gray-600">{stats.cancelledContracts}</p>
-                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.cancelledContracts / stats.totalContracts) * 100) : 0}%)</p>
+                  <p className="text-sm font-medium text-gray-500">ลบแล้ว</p>
+                  <p className="text-2xl font-bold text-gray-600">{stats.deletedContracts}</p>
+                  <p className="text-xs text-gray-400">({stats.totalContracts > 0 ? Math.round((stats.deletedContracts / stats.totalContracts) * 100) : 0}%)</p>
                 </div>
                 <div className="p-2 bg-gray-100 rounded-lg">
                   <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </div>
               </div>

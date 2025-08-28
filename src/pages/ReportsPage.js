@@ -32,20 +32,13 @@ export default function ReportsPage() {
       totalContracts: filteredContracts.length,
       activeContracts: filteredContracts.filter(c => c.status === 'ACTIVE').length,
       pendingContracts: filteredContracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length,
-      completedContracts: filteredContracts.filter(c => c.status === 'COMPLETED').length,
-      cancelledContracts: filteredContracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length,
+      deletedContracts: filteredContracts.filter(c => c.status === 'DELETED').length,
       
       totalPeriods: filteredPeriods.length,
       pendingPeriods: filteredPeriods.filter(p => ['รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
-      completedPeriods: filteredPeriods.filter(p => 
-        p.status === 'เสร็จสิ้น' || 
-        p.status === 'completed' || 
-        p.status === 'COMPLETED'
-      ).length,
+      completedPeriods: filteredPeriods.filter(p => p.status === 'เสร็จสิ้น').length,
       overduePeriods: filteredPeriods.filter(p => {
-        const isCompleted = p.status === 'เสร็จสิ้น' || 
-                           p.status === 'completed' || 
-                           p.status === 'COMPLETED';
+        const isCompleted = p.status === 'เสร็จสิ้น';
         const isPastDue = new Date(p.due_date) < new Date();
         return !isCompleted && isPastDue;
       }).length,
@@ -66,8 +59,7 @@ export default function ReportsPage() {
           total: 0,
           active: 0,
           pending: 0,
-          completed: 0,
-          cancelled: 0
+          deleted: 0
         };
       }
       stats.departmentStats[dept].total++;
@@ -77,10 +69,8 @@ export default function ReportsPage() {
         stats.departmentStats[dept].active++;
       } else if (contract.status === 'PENDING' || contract.status === 'CRTD') {
         stats.departmentStats[dept].pending++;
-      } else if (contract.status === 'COMPLETED') {
-        stats.departmentStats[dept].completed++;
-      } else if (contract.status === 'CANCELLED' || contract.status === 'DELETED') {
-        stats.departmentStats[dept].cancelled++;
+      } else if (contract.status === 'DELETED') {
+        stats.departmentStats[dept].deleted++;
       }
     });
 
@@ -164,8 +154,7 @@ export default function ReportsPage() {
       total,
       active: statusCounts['ACTIVE'] || 0,
       expired: statusCounts['EXPIRED'] || 0,
-      completed: statusCounts['COMPLETED'] || 0,
-      cancelled: statusCounts['CANCELLED'] || 0,
+      deleted: statusCounts['DELETED'] || 0,
       created: statusCounts['CRTD'] || 0
     };
   }, [contracts]);
@@ -342,8 +331,8 @@ export default function ReportsPage() {
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่เสร็จสิ้น</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.completedContracts}</dd>
+                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่ถูกลบ</dt>
+                        <dd className="text-lg font-medium text-gray-900">{reportData.deletedContracts}</dd>
                       </dl>
                     </div>
                   </div>
@@ -447,8 +436,7 @@ export default function ReportsPage() {
                 <div className="space-y-3">
                   {[
                     { key: 'activeContracts', label: 'ใช้งานอยู่', color: 'green' },
-                    { key: 'completedContracts', label: 'เสร็จสิ้น', color: 'blue' },
-                    { key: 'cancelledContracts', label: 'ยกเลิก', color: 'red' }
+                    { key: 'deletedContracts', label: 'ลบแล้ว', color: 'red' }
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between">
                       <div className="flex items-center">
@@ -506,7 +494,7 @@ export default function ReportsPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ทั้งหมด</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ใช้งานอยู่</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เสร็จสิ้น</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลบแล้ว</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -516,7 +504,7 @@ export default function ReportsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.total}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.active || 0}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.pending || 0}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.completed || 0}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.deleted || 0}</td>
                         </tr>
                       ))}
                     </tbody>

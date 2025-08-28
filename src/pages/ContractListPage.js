@@ -140,11 +140,6 @@ export default function ContractListPage() {
         // Check if contract is expired based on end_date OR has EXPIRED/EXPIRE status
         const isExpired = contract.end_date && new Date(contract.end_date) < new Date();
         matchStatus = contract.status === 'EXPIRED' || contract.status === 'EXPIRE' || isExpired;
-      } else if (filters.status === 'COMPLETED') {
-        // รองรับทั้งภาษาอังกฤษและภาษาไทย
-        matchStatus = contract.status === 'COMPLETED' || contract.status === 'เสร็จสิ้น';
-      } else if (filters.status === 'CANCELLED') {
-        matchStatus = contract.status === 'CANCELLED' || contract.status === 'ยกเลิก';
       } else if (filters.status === 'DELETED') {
         matchStatus = contract.status === 'DELETED' || contract.status === 'ลบแล้ว';
       } else if (filters.status === 'CRTD') {
@@ -646,20 +641,17 @@ export default function ContractListPage() {
                             c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'bg-blue-100 text-blue-800' :
                             c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'bg-gray-100 text-gray-800' :
                             c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'bg-purple-100 text-purple-800' :
-                            c.status === 'DELETED' || c.status === 'ลบแล้ว' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {c.status === 'ACTIVE' ? 'ใช้งาน' :
                              c.status === 'EXPIRED' || c.status === 'EXPIRE' || (c.end_date && new Date(c.end_date) < new Date()) ? 'หมดอายุ' :
-                             c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น' ? 'เสร็จสิ้น' :
-                             c.status === 'CANCELLED' || c.status === 'ยกเลิก' ? 'ยกเลิก' :
                              c.status === 'CRTD' || c.status === 'สร้างใหม่' ? 'สร้างใหม่' :
                              c.status === 'DELETED' || c.status === 'ลบแล้ว' ? 'ลบแล้ว' :
                              c.status || '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {['EXPIRED','EXPIRE','DELETED','COMPLETED','CANCELLED','เสร็จสิ้น','ยกเลิก','ลบแล้ว'].includes(c.status) ? '-' : daysLeft(c.end_date)}
+                          {['EXPIRED','EXPIRE','DELETED','ลบแล้ว'].includes(c.status) ? '-' : daysLeft(c.end_date)}
                         </td>
                       </tr>
                     ))

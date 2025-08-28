@@ -597,8 +597,6 @@ export default function AddContract({ onSuccess, onClose, initial }) {
             >
               <option value="CRTD">สร้างใหม่</option>
               <option value="ACTIVE">ใช้งาน</option>
-              <option value="COMPLETED">เสร็จสิ้น</option>
-              <option value="CANCELLED">ยกเลิก</option>
               <option value="EXPIRED">หมดอายุ</option>
               <option value="DELETED">ลบแล้ว</option>
             </select>
