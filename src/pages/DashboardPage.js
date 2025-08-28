@@ -152,6 +152,10 @@ export default function DashboardPage() {
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
           const upcomingPeriods = allPeriods.filter(p => {
             if (p.status === 'เสร็จสิ้น' || !p.due_date) return false;
+            const dueDate = new Date(p.due_date);
+            const today = new Date();
+            const diffTime = dueDate - today;
+            const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             return daysUntilDue >= 0 && daysUntilDue <= 7;
           });
           
