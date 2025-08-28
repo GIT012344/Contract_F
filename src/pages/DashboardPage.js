@@ -146,7 +146,12 @@ export default function DashboardPage() {
                                p.status === 'COMPLETED';
             return !isCompleted && dueDate < new Date();
           }).length;
-          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
+          const pendingPeriods = enhancedPeriods.filter(p => 
+            p.status === 'รอดำเนินการ' || 
+            p.status === 'รอส่งมอบ' || 
+            p.status === 'pending' || 
+            p.status === 'PENDING'
+          ).length;
           const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
           
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
@@ -164,9 +169,9 @@ export default function DashboardPage() {
             pendingContracts,
             expiredContracts,
             totalPeriods: allPeriods.length,
-            pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
-            inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
-            completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
+            pendingPeriods: pendingPeriods,
+            inProgressPeriods: inProgressPeriods,
+            completedPeriods: completedPeriods,
             upcomingDeadlines,
             recentContracts
           });
