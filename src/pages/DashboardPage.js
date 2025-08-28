@@ -166,9 +166,9 @@ export default function DashboardPage() {
             expiredContracts,
             deletedContracts,
             totalPeriods: allPeriods.length,
-            pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
-            inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
-            completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
+            pendingPeriods: allPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'pending' || p.status === 'PENDING').length,
+            inProgressPeriods: allPeriods.filter(p => p.status === 'กำลังดำเนินการ' || p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
+            completedPeriods: allPeriods.filter(p => p.status === 'เสร็จสิ้น' || p.status === 'completed' || p.status === 'COMPLETED').length,
             upcomingDeadlines: upcomingPeriods,
             recentContracts
           });
@@ -434,12 +434,16 @@ export default function DashboardPage() {
                 stats.upcomingDeadlines.map((period, index) => {
                   const daysLeft = getDaysUntilDeadline(period.due_date);
                   return (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div 
+                      key={index} 
+                      className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                      onClick={() => navigate(`/contracts/${period.contract_id}`)}
+                    >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <p className="font-medium text-gray-900">งวดที่ {period.period_no}</p>
                           <span className="text-gray-400">•</span>
-                          <p className="text-sm font-medium text-blue-600">{period.contract_title}</p>
+                          <p className="text-sm font-medium text-blue-600 hover:underline">{period.contract_title}</p>
                         </div>
                         <p className="text-sm text-gray-500">{formatDateThai(period.due_date)}</p>
                         {period.description && (
