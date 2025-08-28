@@ -314,11 +314,22 @@ export default function AddContract({ onSuccess, onClose, initial }) {
     const isEdit = !!initial;
     
     // แปลงข้อมูลจาก camelCase เป็น snake_case สำหรับ backend
+    // Find the selected department's ID if admin is selecting from dropdown
+    let departmentId = null;
+    if (role === 'admin' && !showCustomDept && form.department) {
+      const selectedDept = departments.find(d => d.code === form.department);
+      departmentId = selectedDept ? selectedDept.id : null;
+    } else if (role !== 'admin') {
+      // For regular users, use their department_id
+      departmentId = user?.department_id;
+    }
+    
     const payload = {
       contract_no: form.contractNo,
       contract_date: form.contractDate,
       contact_name: form.contactName,
       department: role === 'admin' && showCustomDept ? customDepartment : (role !== 'admin' ? userDepartment : form.department), // user ใช้แผนกตัวเอง, admin ใช้ที่เลือก
+      department_id: departmentId, // Send department_id for proper backend handling
       start_date: form.startDate,
       end_date: form.endDate,
       remark1: form.remark1,

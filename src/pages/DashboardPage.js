@@ -132,22 +132,39 @@ export default function DashboardPage() {
           });
           
           
-          // Calculate period stats using enhanced periods
-          const totalPeriods = enhancedPeriods.length;
-          const completedPeriods = enhancedPeriods.filter(p => 
+          // Calculate period stats - ONLY 3 statuses: กำลังดำเนินงาน, เสร็จสิ้น, เกินกำหนด
+          const completedPeriods = allPeriods.filter(p => 
             p.status === 'เสร็จสิ้น' || 
             p.status === 'completed' || 
             p.status === 'COMPLETED'
           ).length;
-          const overduePeriods = enhancedPeriods.filter(p => {
+          
+          // Calculate overdue periods (not completed AND past due date)
+          const overduePeriods = allPeriods.filter(p => {
+            if (!p.due_date) return false;
             const dueDate = new Date(p.due_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            dueDate.setHours(0, 0, 0, 0);
             const isCompleted = p.status === 'เสร็จสิ้น' || 
                                p.status === 'completed' || 
                                p.status === 'COMPLETED';
-            return !isCompleted && dueDate < new Date();
+            return !isCompleted && dueDate < today;
           }).length;
-          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอส่งมอบ').length;
-          const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
+          
+          // Calculate in progress periods (not completed AND not overdue)
+          const inProgressPeriods = allPeriods.filter(p => {
+            if (!p.due_date) return true; // If no due date, consider as in progress
+            const dueDate = new Date(p.due_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            dueDate.setHours(0, 0, 0, 0);
+            const isCompleted = p.status === 'เสร็จสิ้น' || 
+                               p.status === 'completed' || 
+                               p.status === 'COMPLETED';
+            const isOverdue = dueDate < today;
+            return !isCompleted && !isOverdue;
+          }).length;
           
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
           const upcomingPeriods = allPeriods.filter(p => {
@@ -166,10 +183,17 @@ export default function DashboardPage() {
             expiredContracts,
             deletedContracts,
             totalPeriods: allPeriods.length,
-            pendingPeriods: allPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'pending' || p.status === 'PENDING').length,
-            inProgressPeriods: allPeriods.filter(p => p.status === 'กำลังดำเนินการ' || p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
-            completedPeriods: allPeriods.filter(p => p.status === 'เสร็จสิ้น' || p.status === 'completed' || p.status === 'COMPLETED').length,
-            upcomingDeadlines: upcomingPeriods,
+            inProgressPeriods,
+            completedPeriods,
+            overduePeriods: overduePeriods.length,
+            upcomingDeadlines: upcomingPeriods.map(p => {
+              const matchedContract = contracts.find(c => c.id === p.contract_id);
+              return {
+                ...p,
+                contract_title: matchedContract?.contract_no || 'ไม่ระบุ',
+                contract_department: matchedContract?.department || matchedContract?.dept || 'N/A'
+              };
+            }),
             recentContracts
           });
         }
@@ -316,29 +340,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Period Stats */}
+        {/* Period Stats - Only 3 statuses */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">สถานะงวดงาน</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">รอดำเนินการ</p>
-                  <p className="text-2xl font-bold text-orange-600">{stats.pendingPeriods}</p>
-                  <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.pendingPeriods / stats.totalPeriods) * 100) : 0}%)</p>
-                </div>
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">กำลังดำเนินการ</p>
+                  <p className="text-sm font-medium text-gray-500">กำลังดำเนินงาน</p>
                   <p className="text-2xl font-bold text-blue-600">{stats.inProgressPeriods}</p>
                   <p className="text-xs text-gray-400">({stats.totalPeriods > 0 ? Math.round((stats.inProgressPeriods / stats.totalPeriods) * 100) : 0}%)</p>
                 </div>

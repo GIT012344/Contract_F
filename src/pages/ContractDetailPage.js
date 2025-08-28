@@ -237,8 +237,10 @@ export default function ContractDetailPage() {
                 </svg>
                 พิมพ์
               </button>
-              {(user.role === 'admin') && (
-                <>
+              {/* Show edit button for users with permission */}
+              {(user.role === 'admin' || 
+                (contract && contract.department_id === user.department_id) ||
+                (contract && contract.shared_can_edit)) && (
                   <button 
                     onClick={() => setShowEditModal(true)} 
                     className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -248,6 +250,12 @@ export default function ContractDetailPage() {
                     </svg>
                     แก้ไข
                   </button>
+              )}
+              
+              {/* Show delete button for users with permission */}
+              {(user.role === 'admin' || 
+                (contract && contract.department_id === user.department_id) ||
+                (contract && contract.shared_can_delete)) && (
                   <button 
                     onClick={handleDeleteContract} 
                     className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -257,7 +265,6 @@ export default function ContractDetailPage() {
                     </svg>
                     ลบ
                   </button>
-                </>
               )}
             </div>
           </div>
@@ -375,26 +382,6 @@ export default function ContractDetailPage() {
                       {(user.role === 'admin') && <td className="p-4 border-b text-center">
                         <div className="flex flex-col gap-2">
                           <div className="flex gap-2 justify-center">
-                            <button className="text-green-600 hover:text-green-800 underline flex items-center gap-1 group" aria-label="เสร็จสิ้น" title="เสร็จสิ้น" onClick={async () => {
-                              if (!window.confirm('ยืนยันการทำเครื่องหมายงวดงานนี้เป็นเสร็จสิ้น?')) return;
-                              const res = await authFetch(`/api/contracts/${id}/periods/${p.id}/complete`, { 
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: 'COMPLETED' })
-                              });
-                              if (res.ok) {
-                                toast.success('อัพเดทสถานะงวดงานสำเร็จ');
-                                const newPeriods = [...periods];
-                                const index = newPeriods.findIndex(period => period.id === p.id);
-                                if (index !== -1) {
-                                  newPeriods[index].status = 'COMPLETED';
-                                  setPeriods(newPeriods);
-                                }
-                              } else {
-                                const error = await res.text();
-                                toast.error(error || 'ไม่สามารถอัพเดทสถานะงวดงานได้');
-                              }
-                            }}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>เสร็จสิ้น</button>
                             <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => setPeriodModal({ open: true, initial: p })}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>แก้ไข</button>
                             <button className="text-red-600 hover:text-red-800 underline flex items-center gap-1 group" aria-label="ลบ" title="ลบ" onClick={async () => {
                               if (!window.confirm('ยืนยันการลบงวดงานนี้?')) return;
