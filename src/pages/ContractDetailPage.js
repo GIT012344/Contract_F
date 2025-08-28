@@ -367,19 +367,25 @@ export default function ContractDetailPage() {
                     <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>วันที่กำหนดส่ง</span></th>
                     <th className="p-4 font-bold text-center"><span className="inline-flex items-center gap-1"><svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" /></svg>แจ้งเตือนล่วงหน้า</span></th>
                     <th className="p-4 font-bold text-center">สถานะ</th>
-                    {(user.role === 'admin') && <th className="p-4 font-bold text-center">จัดการ</th>}
+                    {/* Show manage column for admin or users viewing their department's contracts */}
+                    {(user.role === 'admin' || 
+                      (contract && contract.department_id === user.department_id) ||
+                      (contract && contract.shared_can_edit)) && <th className="p-4 font-bold text-center">จัดการ</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {periods.length === 0 ? (
-                    <tr><td colSpan={(user.role === 'admin') ? 5 : 4} className="text-center text-gray-400 py-10 text-lg">ไม่มีงวดงาน</td></tr>
+                    <tr><td colSpan={(user.role === 'admin' || (contract && contract.department_id === user.department_id) || (contract && contract.shared_can_edit)) ? 5 : 4} className="text-center text-gray-400 py-10 text-lg">ไม่มีงวดงาน</td></tr>
                   ) : periods.map(p => (
                     <tr key={p.id} className="transition hover:bg-blue-50 even:bg-blue-50/50 text-base">
                       <td className="p-4 border-b text-right font-mono text-lg">{p.period_no || '-'}</td>
                       <td className="p-4 border-b text-center">{formatDateThaiWithIcon(p.due_date)}</td>
                       <td className="p-4 border-b text-center"><AlertDaysCell days={p.alert_days} /></td>
                       <td className="p-4 border-b text-center"><StatusBadge status={p.status} /></td>
-                      {(user.role === 'admin') && <td className="p-4 border-b text-center">
+                      {/* Show manage buttons for admin or users with permission */}
+                      {(user.role === 'admin' || 
+                        (contract && contract.department_id === user.department_id) ||
+                        (contract && contract.shared_can_edit)) && <td className="p-4 border-b text-center">
                         <div className="flex flex-col gap-2">
                           <div className="flex gap-2 justify-center">
                             <button className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 group" aria-label="แก้ไข" title="แก้ไข" onClick={() => setPeriodModal({ open: true, initial: p })}><svg className="w-4 h-4 group-hover:scale-110 transition" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6 6M3 21h6v-6l9-9a2.121 2.121 0 10-3-3l-9 9z" /></svg>แก้ไข</button>

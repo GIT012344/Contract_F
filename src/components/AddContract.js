@@ -105,7 +105,8 @@ function PeriodModal({ open, onClose, onSave, initial }) {
 export default function AddContract({ onSuccess, onClose, initial }) {
   const { authFetch, user, token } = useAuth();  
   const role = user?.role;
-  const userDepartment = user?.department || user?.department_id; // Try both fields
+  const userDepartmentId = user?.department_id;
+  const [userDepartmentDisplay, setUserDepartmentDisplay] = useState('');
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [emailError, setEmailError] = useState("");
@@ -170,12 +171,14 @@ export default function AddContract({ onSuccess, onClose, initial }) {
         const response = await authFetch('/api/departments');
         if (response.ok) {
           const data = await response.json();
-          console.log('Departments loaded:', data);
-          // Check if data is an array or has a data property
-          const deptList = Array.isArray(data) ? data : (data.data || data.departments || []);
-          setDepartments(deptList);
-        } else {
-          console.error('Failed to fetch departments:', response.status);
+          setDepartments(data || []);
+          // Set user's department display (code and name) for non-admin users
+          if (role !== 'admin' && userDepartmentId) {
+            const userDept = data.find(d => d.id === userDepartmentId);
+            if (userDept) {
+              setUserDepartmentDisplay(`${userDept.code} - ${userDept.name}`);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching departments:', error);
@@ -184,7 +187,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       }
     };
     fetchDepartments();
-  }, []);
+  }, [role, userDepartmentId, authFetch]);
   
   // Load existing periods when editing
   useEffect(() => {
@@ -328,7 +331,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
       contract_no: form.contractNo,
       contract_date: form.contractDate,
       contact_name: form.contactName,
-      department: role === 'admin' && showCustomDept ? customDepartment : (role !== 'admin' ? userDepartment : form.department), // user ใช้แผนกตัวเอง, admin ใช้ที่เลือก
+      department: role === 'admin' && showCustomDept ? customDepartment : (role !== 'admin' ? (departments.find(d => d.id === userDepartmentId)?.code || '') : form.department), // Send department code
       department_id: departmentId, // Send department_id for proper backend handling
       start_date: form.startDate,
       end_date: form.endDate,
@@ -437,7 +440,7 @@ export default function AddContract({ onSuccess, onClose, initial }) {
             ) : (
               <input
                 type="text"
-                value={userDepartment || form.department || ''}
+                value={userDepartmentDisplay || ''}
                 className="w-full border px-3 py-2 rounded-lg bg-gray-100 cursor-not-allowed"
                 disabled
                 readOnly
