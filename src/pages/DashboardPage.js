@@ -34,12 +34,12 @@ export default function DashboardPage() {
         if (contractsRes.ok) {
           const contracts = await contractsRes.json();
           const today = new Date();
-          
+          // คำนวณสถิติสัญญา
           const totalContracts = contracts.length;
           const activeContracts = contracts.filter(c => c.status === 'ACTIVE').length;
-          const completedContracts = contracts.filter(c => c.status === 'COMPLETED').length;
-          const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'DELETED').length;
-          const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length;
+          const completedContracts = contracts.filter(c => c.status === 'COMPLETED' || c.status === 'เสร็จสิ้น').length;
+          const cancelledContracts = contracts.filter(c => c.status === 'CANCELLED' || c.status === 'ยกเลิก' || c.status === 'DELETED').length;
+          const pendingContracts = contracts.filter(c => c.status === 'PENDING' || c.status === 'รอดำเนินการ').length;
           const expiredContracts = contracts.filter(c => 
             c.status === 'EXPIRED' || (c.end_date && new Date(c.end_date) < today)
           ).length;
@@ -146,12 +146,7 @@ export default function DashboardPage() {
                                p.status === 'COMPLETED';
             return !isCompleted && dueDate < new Date();
           }).length;
-          const pendingPeriods = enhancedPeriods.filter(p => 
-            p.status === 'รอดำเนินการ' || 
-            p.status === 'รอส่งมอบ' || 
-            p.status === 'pending' || 
-            p.status === 'PENDING'
-          ).length;
+          const pendingPeriods = enhancedPeriods.filter(p => p.status === 'รอดำเนินการ' || p.status === 'รอส่งมอบ').length;
           const inProgressPeriods = enhancedPeriods.filter(p => p.status === 'กำลังดำเนินการ').length;
           
           // คำนวณงวดงานใกล้ครบกำหนด (ภายใน 7 วัน)
@@ -169,9 +164,9 @@ export default function DashboardPage() {
             pendingContracts,
             expiredContracts,
             totalPeriods: allPeriods.length,
-            pendingPeriods: pendingPeriods,
-            inProgressPeriods: inProgressPeriods,
-            completedPeriods: completedPeriods,
+            pendingPeriods: allPeriods.filter(p => p.status === 'pending' || p.status === 'PENDING').length,
+            inProgressPeriods: allPeriods.filter(p => p.status === 'in_progress' || p.status === 'IN_PROGRESS').length,
+            completedPeriods: allPeriods.filter(p => p.status === 'completed' || p.status === 'COMPLETED').length,
             upcomingDeadlines,
             recentContracts
           });
