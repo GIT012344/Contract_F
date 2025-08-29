@@ -181,11 +181,22 @@ export default function ContractListPage() {
       }
     }
 
-    // Remark filters (case-insensitive, contains)
-    const r1 = !filters.remark1 || (contract.remark1 || '').toLowerCase().includes(filters.remark1.toLowerCase());
-    const r2 = !filters.remark2 || (contract.remark2 || '').toLowerCase().includes(filters.remark2.toLowerCase());
-    const r3 = !filters.remark3 || (contract.remark3 || '').toLowerCase().includes(filters.remark3.toLowerCase());
-    const r4 = !filters.remark4 || (contract.remark4 || '').toLowerCase().includes(filters.remark4.toLowerCase());
+    // Remark filters - search across ALL remark fields
+    const checkRemark = (filterValue) => {
+      if (!filterValue) return true;
+      const searchTerm = filterValue.toLowerCase();
+      return (
+        (contract.remark1 || '').toLowerCase().includes(searchTerm) ||
+        (contract.remark2 || '').toLowerCase().includes(searchTerm) ||
+        (contract.remark3 || '').toLowerCase().includes(searchTerm) ||
+        (contract.remark4 || '').toLowerCase().includes(searchTerm)
+      );
+    };
+
+    const r1 = checkRemark(filters.remark1);
+    const r2 = checkRemark(filters.remark2);
+    const r3 = checkRemark(filters.remark3);
+    const r4 = checkRemark(filters.remark4);
 
     return matchNumber && matchName && matchDepartment && matchStatus && matchStartDateRange && matchEndDateRange && r1 && r2 && r3 && r4;
   });

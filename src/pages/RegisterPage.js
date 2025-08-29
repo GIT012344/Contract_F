@@ -103,13 +103,10 @@ export default function RegisterPage() {
       }
       
       // Registration successful
-      login(data.token, data.user.role);
-      toast.success(data.message || 'สมัครสมาชิกสำเร็จ!');
+      toast.success('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ');
       
-      // Store user data
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      setTimeout(() => navigate('/contracts'), 1000);
+      // Redirect to login page after 1.5 seconds
+      setTimeout(() => navigate('/login'), 1500);
       
     } catch (err) {
       toast.error(err.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
