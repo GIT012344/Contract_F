@@ -1,537 +1,535 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Layout from '../components/Layout';
-import { useAuth } from '../AuthContext';
-import { exportSummaryToCSV, generateSummaryReport } from '../utils/exportUtils';
-import { printSummaryReport } from '../utils/printUtils';
-import LoadingSpinner from '../components/LoadingSpinner';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast';
+import StatsCard from '../components/reports/StatsCard';
+import ChartCard from '../components/reports/ChartCard';
+import FilterPanel from '../components/reports/FilterPanel';
+import ExportMenu from '../components/reports/ExportMenu';
+import DataTable from '../components/reports/DataTable';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export default function ReportsPage() {
-  const { authFetch } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [filters, setFilters] = useState({
+    dateRange: 'month',
+    department: 'all',
+    statuses: [],
+    reportType: 'summary'
+  });
+
+  // Data states
   const [contracts, setContracts] = useState([]);
   const [periods, setPeriods] = useState([]);
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0], // Start of year
-    endDate: new Date().toISOString().split('T')[0] // Today
+  const [stats, setStats] = useState({
+    totalContracts: 0,
+    activeContracts: 0,
+    totalValue: 0,
+    completedPeriods: 0,
+    pendingPeriods: 0,
+    departments: []
   });
-  const [reportData, setReportData] = useState(null);
-
-  const generateReport = () => {
-    const startDate = new Date(dateRange.startDate);
-    const endDate = new Date(dateRange.endDate);
-    
-    // Filter contracts by department for regular users
-    let filteredContracts = contracts;
-    
-    // Filter periods for the filtered contracts
-    const contractIds = filteredContracts.map(c => c.id);
-    const filteredPeriods = periods.filter(p => contractIds.includes(p.contract_id));
-    
-    // Generate statistics with correct status values
-    const stats = {
-      totalContracts: filteredContracts.length,
-      activeContracts: filteredContracts.filter(c => c.status === 'ACTIVE').length,
-      pendingContracts: filteredContracts.filter(c => c.status === 'PENDING' || c.status === 'CRTD').length,
-      deletedContracts: filteredContracts.filter(c => c.status === 'DELETED').length,
-      
-      totalPeriods: filteredPeriods.length,
-      pendingPeriods: filteredPeriods.filter(p => ['รอส่งมอบ', 'กำลังดำเนินการ'].includes(p.status)).length,
-      completedPeriods: filteredPeriods.filter(p => p.status === 'เสร็จสิ้น').length,
-      overduePeriods: filteredPeriods.filter(p => {
-        const isCompleted = p.status === 'เสร็จสิ้น';
-        const isPastDue = new Date(p.due_date) < new Date();
-        return !isCompleted && isPastDue;
-      }).length,
-      
-      // Department breakdown
-      departmentStats: {},
-      
-      // Monthly breakdown
-      monthlyStats: {}
-    };
-    
-
-    // Calculate department statistics
-    filteredContracts.forEach(contract => {
-      const dept = contract.department || 'ไม่ระบุ';
-      if (!stats.departmentStats[dept]) {
-        stats.departmentStats[dept] = {
-          total: 0,
-          active: 0,
-          pending: 0,
-          deleted: 0
-        };
-      }
-      stats.departmentStats[dept].total++;
-      
-      // Map contract status to department stats
-      if (contract.status === 'ACTIVE') {
-        stats.departmentStats[dept].active++;
-      } else if (contract.status === 'PENDING' || contract.status === 'CRTD') {
-        stats.departmentStats[dept].pending++;
-      } else if (contract.status === 'DELETED') {
-        stats.departmentStats[dept].deleted++;
-      }
-    });
-
-    // Calculate monthly statistics
-    filteredContracts.forEach(contract => {
-      const month = new Date(contract.created_at).toLocaleDateString('th-TH', { 
-        year: 'numeric', 
-        month: 'long' 
-      });
-      if (!stats.monthlyStats[month]) {
-        stats.monthlyStats[month] = 0;
-      }
-      stats.monthlyStats[month]++;
-    });
-
-    setReportData({
-      ...stats,
-      dateRange,
-      contracts: filteredContracts,
-      periods: filteredPeriods
-    });
-  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [contractsRes, periodsRes] = await Promise.all([
-          authFetch('/api/contracts'),
-          authFetch('/api/periods')
-        ]);
-
-        if (contractsRes.ok) {
-          const contractsData = await contractsRes.json();
-          setContracts(contractsData);
-        }
-
-        if (periodsRes.ok) {
-          const periodsData = await periodsRes.json();
-          setPeriods(periodsData);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('ไม่สามารถโหลดข้อมูลได้');
-      }
-    };
-
     fetchData();
-  }, [authFetch]);
+  }, [filters]);
 
-  useEffect(() => {
-    if (contracts.length > 0 || periods.length > 0) {
-      generateReport();
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Fetch dashboard stats and reports data
+      const [dashboardRes, contractsRes, periodsRes, performanceRes] = await Promise.all([
+        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/contracts`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/periods`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { headers })
+      ]);
+
+      const dashboardData = dashboardRes.data.data;
+      const contractsData = contractsRes.data;
+      const periodsData = periodsRes.data;
+      const performanceData = performanceRes.data.data;
+
+      // Apply filters
+      let filteredContracts = contractsData;
+      if (filters.department !== 'all') {
+        filteredContracts = filteredContracts.filter(c => c.department === filters.department);
+      }
+      if (filters.statuses?.length > 0) {
+        filteredContracts = filteredContracts.filter(c => filters.statuses.includes(c.status));
+      }
+
+      // Use API data for stats
+      const departments = dashboardData.departments ? dashboardData.departments.map(d => d.department) : [];
+      
+      setContracts(filteredContracts);
+      setPeriods(periodsData);
+      setStats({
+        totalContracts: dashboardData.contracts?.total_contracts || 0,
+        activeContracts: dashboardData.contracts?.active_contracts || 0,
+        totalValue: parseFloat(dashboardData.contracts?.total_value) || 0,
+        completedPeriods: dashboardData.periods?.completed_periods || 0,
+        pendingPeriods: dashboardData.periods?.pending_periods || 0,
+        departments,
+        performanceMetrics: performanceData
+      });
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      setLoading(false);
     }
-  }, [contracts, periods, dateRange]);
-
-  const handleExportReport = () => {
-    if (!reportData) return;
-    
-    const summaryData = generateSummaryReport(reportData.contracts, reportData.periods);
-    exportSummaryToCSV(summaryData, `รายงานสรุป_${dateRange.startDate}_${dateRange.endDate}`);
-    toast.success('ส่งออกรายงานสำเร็จ');
   };
 
-  const handlePrintReport = () => {
-    if (!reportData) return;
-    
-    const summaryData = generateSummaryReport(reportData.contracts, reportData.periods);
-    printSummaryReport(summaryData);
-  };
-
-  const stats = useMemo(() => {
-    const total = contracts.length;
-    if (total === 0) return null;
-
-    const statusCounts = contracts.reduce((acc, c) => {
-      acc[c.status] = (acc[c.status] || 0) + 1;
+  // Chart data preparation
+  const prepareChartData = () => {
+    // Monthly contracts chart
+    const monthlyData = contracts.reduce((acc, contract) => {
+      const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
+      acc[month] = (acc[month] || 0) + 1;
       return acc;
     }, {});
 
-    return {
-      total,
-      active: statusCounts['ACTIVE'] || 0,
-      expired: statusCounts['EXPIRED'] || 0,
-      deleted: statusCounts['DELETED'] || 0,
-      created: statusCounts['CRTD'] || 0
+    const contractTrendData = {
+      labels: Object.keys(monthlyData),
+      datasets: [{
+        label: 'จำนวนสัญญา',
+        data: Object.values(monthlyData),
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
     };
-  }, [contracts]);
 
-  if (!contracts.length || !periods.length) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-96">
-          <LoadingSpinner size="large" />
-        </div>
-      </Layout>
-    );
-  }
+    // Department distribution
+    const deptData = contracts.reduce((acc, contract) => {
+      acc[contract.department] = (acc[contract.department] || 0) + 1;
+      return acc;
+    }, {});
+
+    const departmentChartData = {
+      labels: Object.keys(deptData),
+      datasets: [{
+        data: Object.values(deptData),
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(147, 51, 234, 0.8)'
+        ]
+      }]
+    };
+
+    // Status distribution
+    const statusData = contracts.reduce((acc, contract) => {
+      acc[contract.status] = (acc[contract.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusChartData = {
+      labels: Object.keys(statusData).map(s => s === 'active' ? 'ดำเนินการ' : s === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก'),
+      datasets: [{
+        data: Object.values(statusData),
+        backgroundColor: [
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(239, 68, 68, 0.8)'
+        ]
+      }]
+    };
+
+    // Financial trend
+    const financialData = periods.reduce((acc, period) => {
+      const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
+      acc[month] = (acc[month] || 0) + parseFloat(period.amount || 0);
+      return acc;
+    }, {});
+
+    const financialChartData = {
+      labels: Object.keys(financialData),
+      datasets: [{
+        label: 'มูลค่า (บาท)',
+        data: Object.values(financialData),
+        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+        borderColor: 'rgb(16, 185, 129)',
+        borderWidth: 2
+      }]
+    };
+
+    return { contractTrendData, departmentChartData, statusChartData, financialChartData };
+  };
+
+  const { contractTrendData, departmentChartData, statusChartData, financialChartData } = prepareChartData();
+
+  // Export handlers
+  const handleExport = async (format, data) => {
+    switch (format) {
+      case 'excel':
+        exportToExcel(data);
+        break;
+      case 'pdf':
+        exportToPDF(data);
+        break;
+      case 'csv':
+        exportToCSV(data);
+        break;
+      case 'print':
+        window.print();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const exportToExcel = (data) => {
+    const ws = XLSX.utils.json_to_sheet(contracts);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
+    XLSX.writeFile(wb, `report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const exportToPDF = (data) => {
+    const doc = new jsPDF();
+    doc.text('รายงานสัญญา', 14, 15);
+    doc.text(`วันที่: ${new Date().toLocaleDateString('th-TH')}`, 14, 25);
+    
+    const tableColumns = ['เลขที่สัญญา', 'ชื่อสัญญา', 'หน่วยงาน', 'มูลค่า', 'สถานะ'];
+    const tableRows = contracts.map(c => [
+      c.contractNumber,
+      c.contractName,
+      c.department,
+      `${parseFloat(c.totalAmount || 0).toLocaleString()} บาท`,
+      c.status
+    ]);
+    
+    doc.autoTable({
+      head: [tableColumns],
+      body: tableRows,
+      startY: 35,
+      styles: { font: 'helvetica' }
+    });
+    
+    doc.save(`report_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const exportToCSV = (data) => {
+    const csvContent = [
+      ['เลขที่สัญญา', 'ชื่อสัญญา', 'หน่วยงาน', 'มูลค่า', 'สถานะ'],
+      ...contracts.map(c => [
+        c.contractNumber,
+        c.contractName,
+        c.department,
+        c.totalAmount,
+        c.status
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  // Table columns configuration
+  const contractColumns = [
+    { key: 'contractNumber', label: 'เลขที่สัญญา' },
+    { key: 'contractName', label: 'ชื่อสัญญา' },
+    { key: 'department', label: 'หน่วยงาน' },
+    { 
+      key: 'totalAmount', 
+      label: 'มูลค่า',
+      render: (value) => `${parseFloat(value || 0).toLocaleString()} บาท`
+    },
+    {
+      key: 'status',
+      label: 'สถานะ',
+      render: (value) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          value === 'active' ? 'bg-green-100 text-green-800' :
+          value === 'completed' ? 'bg-blue-100 text-blue-800' :
+          'bg-red-100 text-red-800'
+        }`}>
+          {value === 'active' ? 'ดำเนินการ' : value === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก'}
+        </span>
+      )
+    }
+  ];
+
+  const tabs = [
+    { id: 'dashboard', label: 'ภาพรวม', icon: '📊' },
+    { id: 'contracts', label: 'สัญญา', icon: '📄' },
+    { id: 'financial', label: 'การเงิน', icon: '💰' },
+    { id: 'analytics', label: 'วิเคราะห์', icon: '📈' }
+  ];
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Toaster position="top-right" />
+      
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">รายงานและสถิติ</h1>
-              <p className="mt-2 text-gray-600">ดูรายงานสรุปและสถิติการใช้งานระบบ</p>
+              <h1 className="text-2xl font-bold text-gray-900">ระบบรายงานและวิเคราะห์</h1>
+              <p className="text-sm text-gray-500 mt-1">ข้อมูล ณ วันที่ {new Date().toLocaleDateString('th-TH')}</p>
             </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={handleExportReport}
-                disabled={!reportData}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                ส่งออก CSV
-              </button>
-              
-              <button
-                onClick={handlePrintReport}
-                disabled={!reportData}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                พิมพ์รายงาน
-              </button>
-            </div>
+            <ExportMenu onExport={handleExport} data={contracts} reportTitle="รายงานสัญญา" />
           </div>
         </div>
-
-        {/* Date Range Filter */}
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">ช่วงเวลาที่ต้องการดูรายงาน</h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">วันที่เริ่มต้น</label>
-              <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">วันที่สิ้นสุด</label>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div className="sm:col-span-2 flex items-end">
-              <button
-                onClick={() => {
-                  generateReport();
-                  toast.success('สร้างรายงานสำเร็จ');
-                }}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                สร้างรายงาน
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {reportData && (
-          <>
-            {/* Overview Statistics */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาทั้งหมด</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.totalContracts}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่ใช้งานอยู่</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.activeContracts}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดที่รอส่งมอบ</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.pendingPeriods}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดเกินกำหนด</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.overduePeriods}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่ถูกลบ</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.deletedContracts}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.pendingContracts}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดเสร็จสิ้น</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.completedPeriods}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">หน่วยงานทั้งหมด</dt>
-                        <dd className="text-lg font-medium text-gray-900">{Object.keys(reportData.departmentStats || {}).length}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">งวดงานทั้งหมด</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.totalPeriods}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">สัญญาที่ยกเลิก</dt>
-                        <dd className="text-lg font-medium text-gray-900">{reportData.cancelledContracts || 0}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Contract Status Breakdown */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">สถานะสัญญา</h3>
-                <div className="space-y-3">
-                  {[
-                    { key: 'activeContracts', label: 'ใช้งานอยู่', color: 'green' },
-                    { key: 'deletedContracts', label: 'ลบแล้ว', color: 'red' }
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className={`w-3 h-3 rounded-full bg-${item.color}-500 mr-3`}></div>
-                        <span className="text-sm text-gray-700">{item.label}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-900 mr-2">
-                          {reportData[item.key]}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          ({reportData.totalContracts > 0 ? Math.round((reportData[item.key] / reportData.totalContracts) * 100) : 0}%)
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">สถานะงวดงาน</h3>
-                <div className="space-y-3">
-                  {[
-                    { key: 'pendingPeriods', label: 'รอส่งมอบ', color: 'yellow' },
-                    { key: 'completedPeriods', label: 'เสร็จสิ้น', color: 'green' },
-                    { key: 'overduePeriods', label: 'เกินกำหนด', color: 'red' }
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className={`w-3 h-3 rounded-full bg-${item.color}-500 mr-3`}></div>
-                        <span className="text-sm text-gray-700">{item.label}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-900 mr-2">
-                          {reportData[item.key]}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          ({reportData.totalPeriods > 0 ? Math.round((reportData[item.key] / reportData.totalPeriods) * 100) : 0}%)
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Department Statistics */}
-            {Object.keys(reportData.departmentStats).length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">สถิติตามหน่วยงาน</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ทั้งหมด</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ใช้งานอยู่</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลบแล้ว</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {Object.entries(reportData.departmentStats).map(([dept, stats]) => (
-                        <tr key={dept}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{dept}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.total}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.active || 0}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.pending || 0}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{stats.deleted || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Monthly Statistics */}
-            {Object.keys(reportData.monthlyStats).length > 0 && (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">สถิติรายเดือน</h3>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {Object.entries(reportData.monthlyStats).map(([month, count]) => (
-                    <div key={month} className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">{month}</span>
-                        <span className="text-lg font-bold text-blue-600">{count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
       </div>
-    </Layout>
+
+      {/* Tabs */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Filter Panel */}
+          <div className="lg:col-span-1">
+            <FilterPanel
+              filters={filters}
+              onFilterChange={setFilters}
+              departments={stats.departments}
+              statuses={[
+                { value: 'active', label: 'ดำเนินการ' },
+                { value: 'completed', label: 'เสร็จสิ้น' },
+                { value: 'cancelled', label: 'ยกเลิก' }
+              ]}
+            />
+          </div>
+
+          {/* Content Area */}
+          <div className="lg:col-span-3">
+            <AnimatePresence mode="wait">
+              {activeTab === 'dashboard' && (
+                <motion.div
+                  key="dashboard"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <StatsCard
+                      title="สัญญาทั้งหมด"
+                      value={stats.totalContracts}
+                      color="blue"
+                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>}
+                      trend="up"
+                      trendValue={12}
+                      loading={loading}
+                    />
+                    <StatsCard
+                      title="สัญญาที่ดำเนินการ"
+                      value={stats.activeContracts}
+                      color="green"
+                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>}
+                      trend="up"
+                      trendValue={8}
+                      loading={loading}
+                    />
+                    <StatsCard
+                      title="มูลค่ารวม"
+                      value={`${stats.totalValue.toLocaleString()} บาท`}
+                      color="yellow"
+                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>}
+                      trend="up"
+                      trendValue={15}
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Charts */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <ChartCard
+                      title="แนวโน้มสัญญารายเดือน"
+                      subtitle="จำนวนสัญญาในแต่ละเดือน"
+                      type="line"
+                      data={contractTrendData}
+                      loading={loading}
+                    />
+                    <ChartCard
+                      title="สัญญาตามหน่วยงาน"
+                      subtitle="การกระจายตามหน่วยงาน"
+                      type="doughnut"
+                      data={departmentChartData}
+                      height={250}
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Recent Contracts Table */}
+                  <DataTable
+                    title="สัญญาล่าสุด"
+                    subtitle="แสดงสัญญาที่มีการอัพเดทล่าสุด"
+                    columns={contractColumns}
+                    data={contracts.slice(0, 5)}
+                    searchable={false}
+                    pagination={false}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'contracts' && (
+                <motion.div
+                  key="contracts"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <DataTable
+                    title="รายการสัญญาทั้งหมด"
+                    subtitle={`พบ ${contracts.length} รายการ`}
+                    columns={contractColumns}
+                    data={contracts}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'financial' && (
+                <motion.div
+                  key="financial"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <StatsCard
+                      title="งวดที่เสร็จสิ้น"
+                      value={stats.completedPeriods}
+                      color="green"
+                      subtitle="งวดที่ได้รับเงินแล้ว"
+                      loading={loading}
+                    />
+                    <StatsCard
+                      title="งวดรอดำเนินการ"
+                      value={stats.pendingPeriods}
+                      color="yellow"
+                      subtitle="งวดที่รอการชำระ"
+                      loading={loading}
+                    />
+                    <StatsCard
+                      title="มูลค่างวดรวม"
+                      value={`${periods.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0).toLocaleString()} บาท`}
+                      color="blue"
+                      loading={loading}
+                    />
+                  </div>
+
+                  <ChartCard
+                    title="แนวโน้มรายได้"
+                    subtitle="มูลค่างวดงานรายเดือน"
+                    type="bar"
+                    data={financialChartData}
+                    loading={loading}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'analytics' && (
+                <motion.div
+                  key="analytics"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <ChartCard
+                      title="สถานะสัญญา"
+                      subtitle="การกระจายตามสถานะ"
+                      type="pie"
+                      data={statusChartData}
+                      height={300}
+                      loading={loading}
+                    />
+                    <ChartCard
+                      title="เปรียบเทียบหน่วยงาน"
+                      subtitle="จำนวนสัญญาแต่ละหน่วยงาน"
+                      type="bar"
+                      data={departmentChartData}
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Performance Metrics */}
+                  <div className="bg-white rounded-xl shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">ตัวชี้วัดประสิทธิภาพ</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-gray-600">อัตราความสำเร็จ</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {Math.round(stats.performanceMetrics?.completionRate || 0)}%
+                          </p>
+                        </div>
+                        <div className="w-16 h-16">
+                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.completionRate || 0)}, 100`}/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-gray-600">อัตราการใช้งบประมาณ</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {Math.round(stats.performanceMetrics?.budgetUtilization || 0)}%
+                          </p>
+                        </div>
+                        <div className="w-16 h-16">
+                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.budgetUtilization || 0)}, 100`}/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

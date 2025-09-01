@@ -14,7 +14,6 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ContractListPage = lazy(() => import('./pages/ContractListPage'));
 const ContractDetailPage = lazy(() => import('./pages/ContractDetailPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
-const ModernReportsPage = lazy(() => import('./pages/ModernReportsPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const DepartmentManagement = lazy(() => import('./pages/DepartmentManagement'));
 
@@ -63,11 +62,6 @@ export default function App() {
               <Route path="/reports" element={
                 <ProtectedRoute>
                   <ReportsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/modern-reports" element={
-                <ProtectedRoute>
-                  <ModernReportsPage />
                 </ProtectedRoute>
               } />
               <Route path="/settings" element={
