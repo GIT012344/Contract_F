@@ -122,10 +122,12 @@ function StatusBadge({ status }) {
 }
 // ฟังก์ชันแสดงแจ้งเตือนล่วงหน้า
 function AlertDaysCell({ days }) {
-  if (!days || days <= 0) return <span className="text-gray-300">-</span>;
+  if (days === null || days === undefined) return <span className="text-gray-300">-</span>;
   return (
     <span className="inline-flex items-center gap-1 text-yellow-700 font-semibold">
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" /></svg>
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
       {days} วัน
     </span>
   );
