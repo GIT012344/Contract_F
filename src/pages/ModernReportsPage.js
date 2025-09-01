@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie,
