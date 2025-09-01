@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [departments, setDepartments] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
@@ -61,7 +62,10 @@ export default function LoginPage() {
         // Success - login with new user data structure
         login(data.token, data.user);
         toast.success(data.message || 'เข้าสู่ระบบสำเร็จ');
-        setTimeout(() => navigate('/dashboard'), 500);
+        
+        // Navigate to the original requested page or dashboard
+        const from = location.state?.from?.pathname || '/dashboard';
+        setTimeout(() => navigate(from), 500);
       } else {
         // Handle different error types
         setError(data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
