@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import toast, { Toaster } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import StatsCard from '../components/reports/StatsCard';
 import ChartCard from '../components/reports/ChartCard';
 import FilterPanel from '../components/reports/FilterPanel';
@@ -12,18 +13,11 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export default function ReportsPage() {
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [filters, setFilters] = useState({
-    dateRange: 'month',
-    department: 'all',
-    statuses: [],
-    reportType: 'summary'
-  });
-
-  // Data states
   const [contracts, setContracts] = useState([]);
   const [periods, setPeriods] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState({
     totalContracts: 0,
     activeContracts: 0,
@@ -32,6 +26,16 @@ export default function ReportsPage() {
     pendingPeriods: 0,
     departments: []
   });
+  const [filters, setFilters] = useState({
+    dateRange: 'month',
+    startDate: null,
+    endDate: null,
+    department: 'all',
+    statuses: [],
+    reportType: 'summary'
+  });
+  const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -44,17 +48,19 @@ export default function ReportsPage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       // Fetch dashboard stats and reports data
-      const [dashboardRes, contractsRes, periodsRes, performanceRes] = await Promise.all([
+      const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.all([
         axios.get(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { headers }),
         axios.get(`${process.env.REACT_APP_API_URL}/api/contracts`, { headers }),
         axios.get(`${process.env.REACT_APP_API_URL}/api/periods`, { headers }),
-        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { headers })
+        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/departments`, { headers })
       ]);
 
       const dashboardData = dashboardRes.data.data;
       const contractsData = contractsRes.data;
       const periodsData = periodsRes.data;
       const performanceData = performanceRes.data.data;
+      const departmentsData = departmentsRes.data;
 
       // Apply filters
       let filteredContracts = contractsData;
@@ -66,8 +72,7 @@ export default function ReportsPage() {
       }
 
       // Use API data for stats
-      const departments = dashboardData.departments ? dashboardData.departments.map(d => d.department) : [];
-      
+      setDepartments(departmentsData || []);
       setContracts(filteredContracts);
       setPeriods(periodsData);
       setStats({
@@ -76,7 +81,7 @@ export default function ReportsPage() {
         totalValue: parseFloat(dashboardData.contracts?.total_value) || 0,
         completedPeriods: dashboardData.periods?.completed_periods || 0,
         pendingPeriods: dashboardData.periods?.pending_periods || 0,
-        departments,
+        departments: departmentsData || [],
         performanceMetrics: performanceData
       });
 
@@ -273,60 +278,71 @@ export default function ReportsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Toaster position="top-right" />
-      
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">ระบบรายงานและวิเคราะห์</h1>
-              <p className="text-sm text-gray-500 mt-1">ข้อมูล ณ วันที่ {new Date().toLocaleDateString('th-TH')}</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-800">
+              ระบบรายงานและวิเคราะห์
+            </h1>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              ย้อนกลับ
+            </button>
+          </div>
+          <p className="text-gray-600">
+            ดูภาพรวมและวิเคราะห์ข้อมูลสัญญาในองค์กร
+          </p>
+        </motion.div>
+
+        {/* Tabs */}
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex space-x-8" aria-label="Tabs">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="mr-2">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Filter Panel */}
+            <div className="lg:col-span-1">
+              <FilterPanel
+                filters={filters}
+                onFilterChange={setFilters}
+                departments={departments}
+                statuses={[
+                  { value: 'active', label: 'ดำเนินการ' },
+                  { value: 'completed', label: 'เสร็จสิ้น' },
+                  { value: 'cancelled', label: 'ยกเลิก' }
+                ]}
+              />
             </div>
-            <ExportMenu onExport={handleExport} data={contracts} reportTitle="รายงานสัญญา" />
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Filter Panel */}
-          <div className="lg:col-span-1">
-            <FilterPanel
-              filters={filters}
-              onFilterChange={setFilters}
-              departments={stats.departments}
-              statuses={[
-                { value: 'active', label: 'ดำเนินการ' },
-                { value: 'completed', label: 'เสร็จสิ้น' },
-                { value: 'cancelled', label: 'ยกเลิก' }
-              ]}
-            />
-          </div>
 
           {/* Content Area */}
           <div className="lg:col-span-3">
