@@ -328,7 +328,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Filter Panel */}
             <div className="lg:col-span-1">
@@ -344,9 +344,9 @@ export default function ReportsPage() {
               />
             </div>
 
-          {/* Content Area */}
-          <div className="lg:col-span-3">
-            <AnimatePresence mode="wait">
+            {/* Content Area */}
+            <div className="lg:col-span-3">
+              <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
                 <motion.div
                   key="dashboard"
@@ -542,7 +542,8 @@ export default function ReportsPage() {
                   </div>
                 </motion.div>
               )}
-            </AnimatePresence>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
