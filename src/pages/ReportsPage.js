@@ -104,47 +104,84 @@ export default function ReportsPage() {
   };
 
   // Chart data preparation
-  const prepareChartData = () => {
-    // Prepare chart data - only when data is loaded
-    const monthlyData = contracts.length > 0 ? contracts.reduce((acc, contract) => {
-      if (!contract.startDate) return acc;
-      const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
-      acc[month] = (acc[month] || 0) + 1;
-      return acc;
-    }, {}) : { 'ม.ค.': 0, 'ก.พ.': 0, 'มี.ค.': 0 };
+  const [contractTrendData, setContractTrendData] = useState({
+    labels: [],
+    datasets: [{
+      label: 'จำนวนสัญญา',
+      data: [],
+      borderColor: 'rgb(59, 130, 246)',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      tension: 0.4
+    }]
+  });
+  const [departmentChartData, setDepartmentChartData] = useState({
+    labels: [],
+    datasets: [{
+      data: [],
+      backgroundColor: [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+        '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+      ]
+    }]
+  });
+  const [statusChartData, setStatusChartData] = useState({
+    labels: [],
+    datasets: [{
+      data: [],
+      backgroundColor: [
+        'rgba(16, 185, 129, 0.8)',
+        'rgba(59, 130, 246, 0.8)',
+        'rgba(239, 68, 68, 0.8)'
+      ]
+    }]
+  });
+  const [periodTrendData, setPeriodTrendData] = useState({
+    labels: [],
+    datasets: [{
+      label: 'จำนวนงวด',
+      data: [],
+      backgroundColor: 'rgba(16, 185, 129, 0.8)',
+      borderColor: 'rgb(16, 185, 129)',
+      borderWidth: 2
+    }]
+  });
 
-    const contractTrendData = {
-      labels: Object.keys(monthlyData).length > 0 ? Object.keys(monthlyData) : ['ม.ค.', 'ก.พ.', 'มี.ค.'],
+  const prepareChartData = () => {
+    // Contract trend data - by month (จำนวนสัญญา ไม่ใช่มูลค่าเงิน)
+    const monthlyData = {};
+    contracts.forEach(contract => {
+      const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
+      monthlyData[month] = (monthlyData[month] || 0) + 1;
+    });
+
+    setContractTrendData({
+      labels: Object.keys(monthlyData),
       datasets: [{
         label: 'จำนวนสัญญา',
-        data: Object.values(monthlyData).length > 0 ? Object.values(monthlyData) : [0, 0, 0],
+        data: Object.values(monthlyData),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-        fill: true
+        tension: 0.4
       }]
-    };
+    });
 
-    // Department distribution
-    const deptData = contracts.length > 0 ? contracts.reduce((acc, contract) => {
+    // Department distribution (จำนวนสัญญา ไม่ใช่มูลค่าเงิน)
+    const departmentData = {};
+    contracts.forEach(contract => {
       const dept = contract.department || 'ไม่ระบุ';
-      acc[dept] = (acc[dept] || 0) + 1;
-      return acc;
-    }, {}) : { 'ไม่มีข้อมูล': 1 };
+      departmentData[dept] = (departmentData[dept] || 0) + 1;
+    });
 
-    const departmentChartData = {
-      labels: Object.keys(deptData),
+    setDepartmentChartData({
+      labels: Object.keys(departmentData),
       datasets: [{
-        data: Object.values(deptData),
+        data: Object.values(departmentData),
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
-          'rgba(251, 146, 60, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(147, 51, 234, 0.8)'
+          '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
         ]
       }]
-    };
+    });
 
     // Status distribution
     const statusData = contracts.length > 0 ? contracts.reduce((acc, contract) => {
@@ -153,7 +190,7 @@ export default function ReportsPage() {
       return acc;
     }, {}) : { 'active': 0, 'completed': 0 };
 
-    const statusChartData = {
+    setStatusChartData({
       labels: Object.keys(statusData).map(s => s === 'active' ? 'ดำเนินการ' : s === 'completed' ? 'เสร็จสิ้น' : s === 'cancelled' ? 'ยกเลิก' : 'อื่นๆ'),
       datasets: [{
         data: Object.values(statusData),
@@ -163,31 +200,32 @@ export default function ReportsPage() {
           'rgba(239, 68, 68, 0.8)'
         ]
       }]
-    };
+    });
 
-    // Period trend (count, not financial)
-    const periodData = periods.length > 0 ? periods.reduce((acc, period) => {
-      if (!period.dueDate) return acc;
-      const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
-      acc[month] = (acc[month] || 0) + 1; // นับจำนวนงวด ไม่ใช่มูลค่าเงิน
+    // Period trend data
+    const monthlyPeriods = periods.reduce((acc, period) => {
+      const month = period.due_date ? new Date(period.due_date).toLocaleDateString('th-TH', { month: 'short' }) : 'ไม่ระบุ';
+      acc[month] = (acc[month] || 0) + 1;
       return acc;
-    }, {}) : { 'ม.ค.': 0, 'ก.พ.': 0, 'มี.ค.': 0 };
+    }, {});
 
-    const periodTrendData = {
-      labels: Object.keys(periodData).length > 0 ? Object.keys(periodData) : ['ม.ค.', 'ก.พ.', 'มี.ค.'],
+    setPeriodTrendData({
+      labels: Object.keys(monthlyPeriods),
       datasets: [{
         label: 'จำนวนงวด',
-        data: Object.values(periodData).length > 0 ? Object.values(periodData) : [0, 0, 0],
+        data: Object.values(monthlyPeriods),
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
         borderColor: 'rgb(16, 185, 129)',
         borderWidth: 2
       }]
-    };
-
-    return { contractTrendData, departmentChartData, statusChartData, periodTrendData };
+    });
   };
 
-  const { contractTrendData, departmentChartData, statusChartData, periodTrendData } = prepareChartData();
+  useEffect(() => {
+    if (contracts.length > 0 || periods.length > 0) {
+      prepareChartData();
+    }
+  }, [contracts, periods]);
 
   // Export handlers
   const handleExport = async (format, data) => {
@@ -266,9 +304,9 @@ export default function ReportsPage() {
     { key: 'department', label: 'หน่วยงาน' },
     { key: 'contractor', label: 'คู่สัญญา' },
     { 
-      key: 'totalAmount', 
-      label: 'มูลค่า',
-      render: (value) => `${parseFloat(value || 0).toLocaleString()} บาท`
+      key: 'period_count', 
+      label: 'จำนวนงวด',
+      render: (value) => value || '0'
     },
     { 
       key: 'startDate', 
@@ -294,7 +332,7 @@ export default function ReportsPage() {
   const periodColumns = [
     { key: 'period_number', label: 'งวดที่' },
     { key: 'description', label: 'รายละเอียด' },
-    { key: 'amount', label: 'จำนวนงวด' },
+    { key: 'period_no', label: 'รหัสงวด' },
     { 
       key: 'due_date', 
       label: 'วันครบกำหนด',
@@ -323,8 +361,7 @@ export default function ReportsPage() {
   const tabs = [
     { id: 'dashboard', label: 'ภาพรวม', icon: '📊' },
     { id: 'contracts', label: 'สัญญา', icon: '📄' },
-    { id: 'periods', label: 'งวดสัญญา', icon: '📅' },
-    { id: 'analytics', label: 'วิเคราะห์', icon: '📈' }
+    { id: 'periods', label: 'งวดสัญญา', icon: '📅' }
   ];
 
   return (
@@ -405,8 +442,6 @@ export default function ReportsPage() {
                       icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>}
-                      trend="up"
-                      trendValue={12}
                       loading={loading}
                     />
                     <StatsCard
@@ -416,8 +451,6 @@ export default function ReportsPage() {
                       icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>}
-                      trend="up"
-                      trendValue={8}
                       loading={loading}
                     />
                     <StatsCard
@@ -427,8 +460,6 @@ export default function ReportsPage() {
                       icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>}
-                      trend="up"
-                      trendValue={15}
                       loading={loading}
                     />
                   </div>
@@ -535,73 +566,6 @@ export default function ReportsPage() {
                 </motion.div>
               )}
 
-              {activeTab === 'analytics' && (
-                <motion.div
-                  key="analytics"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
-                >
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold mb-4">ตัวชี้วัดประสิทธิภาพ</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                        <div>
-                          <p className="text-sm text-gray-600">อัตราความสำเร็จสัญญา</p>
-                          <p className="text-2xl font-bold text-green-600">
-                            {Math.round(stats.performanceMetrics?.completionRate || 0)}%
-                          </p>
-                        </div>
-                        <div className="w-16 h-16">
-                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.completionRate || 0)}, 100`}/>
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                        <div>
-                          <p className="text-sm text-gray-600">อัตราความสำเร็จงวด</p>
-                          <p className="text-2xl font-bold text-blue-600">
-                            {Math.round(stats.performanceMetrics?.periodCompletionRate || 0)}%
-                          </p>
-                        </div>
-                        <div className="w-16 h-16">
-                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.periodCompletionRate || 0)}, 100`}/>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <DataTable
-                    title="ประสิทธิภาพตามหน่วยงาน"
-                    columns={[
-                      { key: 'department', label: 'หน่วยงาน' },
-                      { key: 'total_contracts', label: 'จำนวนสัญญา' },
-                      { 
-                        key: 'progress_rate', 
-                        label: 'อัตราความคืบหน้า',
-                        render: (value) => (
-                          <div className="flex items-center">
-                            <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
-                              <div 
-                                className="bg-blue-600 h-2 rounded-full" 
-                                style={{ width: `${value}%` }}
-                              />
-                            </div>
-                            <span className="text-sm font-medium">{Math.round(value)}%</span>
-                          </div>
-                        )
-                      }
-                    ]}
-                    data={stats.performanceMetrics?.departmentPerformance || []}
-                  />
-                </motion.div>
-              )}
             </AnimatePresence>
           </div>
         </div>
