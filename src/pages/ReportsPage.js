@@ -43,8 +43,8 @@ export default function ReportsPage() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch dashboard stats and reports data
-      const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.all([
+      // Fetch dashboard stats and reports data with error handling
+      const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.allSettled([
         axios.get(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { headers }),
         axios.get(`${process.env.REACT_APP_API_URL}/api/contracts`, { headers }),
         axios.get(`${process.env.REACT_APP_API_URL}/api/periods`, { headers }),
@@ -52,11 +52,12 @@ export default function ReportsPage() {
         axios.get(`${process.env.REACT_APP_API_URL}/api/departments`, { headers })
       ]);
 
-      const dashboardData = dashboardRes.data.data;
-      const contractsData = contractsRes.data;
-      const periodsData = periodsRes.data;
-      const performanceData = performanceRes.data.data;
-      const departmentsData = departmentsRes.data;
+      // Handle Promise.allSettled responses
+      const dashboardData = dashboardRes.status === 'fulfilled' ? dashboardRes.value.data.data || {} : {};
+      const contractsData = contractsRes.status === 'fulfilled' ? contractsRes.value.data || [] : [];
+      const periodsData = periodsRes.status === 'fulfilled' ? periodsRes.value.data || [] : [];
+      const performanceData = performanceRes.status === 'fulfilled' ? performanceRes.value.data.data || {} : {};
+      const departmentsData = departmentsRes.status === 'fulfilled' ? departmentsRes.value.data || [] : [];
 
       // Apply filters
       let filteredContracts = contractsData;
@@ -67,8 +68,13 @@ export default function ReportsPage() {
         filteredContracts = filteredContracts.filter(c => filters.statuses.includes(c.status));
       }
 
-      // Use API data for stats
-      const departments = departmentsData.map(d => d.name || d.department);
+      // Use API data for stats - ใช้ข้อมูลจาก API departments (จากหน้าจัดการแผนก)
+      const departments = Array.isArray(departmentsData) 
+        ? departmentsData.map(d => ({
+            id: d.id,
+            name: d.name || d.department_name || d.department
+          }))
+        : [];
       
       setContracts(filteredContracts);
       setPeriods(periodsData);
@@ -79,7 +85,12 @@ export default function ReportsPage() {
         completedPeriods: dashboardData.periods?.completed_periods || 0,
         pendingPeriods: dashboardData.periods?.pending_periods || 0,
         departments,
-        performanceMetrics: performanceData
+        performanceMetrics: {
+          completionRate: performanceData.completionRate || 0,
+          periodCompletionRate: performanceData.periodCompletionRate || 0,
+          onTimePaymentRate: performanceData.onTimePaymentRate || 0,
+          departmentPerformance: performanceData.departmentPerformance || []
+        }
       });
 
       setLoading(false);
