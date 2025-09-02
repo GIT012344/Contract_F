@@ -247,21 +247,57 @@ export default function ReportsPage() {
     { key: 'contractNumber', label: 'เลขที่สัญญา' },
     { key: 'contractName', label: 'ชื่อสัญญา' },
     { key: 'department', label: 'หน่วยงาน' },
+    { key: 'contractor', label: 'คู่สัญญา' },
     { 
       key: 'totalAmount', 
       label: 'มูลค่า',
       render: (value) => `${parseFloat(value || 0).toLocaleString()} บาท`
     },
-    {
-      key: 'status',
+    { 
+      key: 'startDate', 
+      label: 'วันเริ่มต้น',
+      render: (value) => new Date(value).toLocaleDateString('th-TH')
+    },
+    { 
+      key: 'status', 
       label: 'สถานะ',
       render: (value) => (
         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value === 'active' ? 'bg-green-100 text-green-800' :
-          value === 'completed' ? 'bg-blue-100 text-blue-800' :
-          'bg-red-100 text-red-800'
+          value === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+          value === 'EXPIRED' ? 'bg-red-100 text-red-800' :
+          'bg-gray-100 text-gray-800'
         }`}>
           {value === 'active' ? 'ดำเนินการ' : value === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก'}
+        </span>
+      )
+    }
+  ];
+
+  // Period columns configuration
+  const periodColumns = [
+    { key: 'period_number', label: 'งวดที่' },
+    { key: 'description', label: 'รายละเอียด' },
+    { key: 'amount', label: 'จำนวนงวด' },
+    { 
+      key: 'due_date', 
+      label: 'วันครบกำหนด',
+      render: (value) => value ? new Date(value).toLocaleDateString('th-TH') : '-'
+    },
+    { 
+      key: 'paid_date', 
+      label: 'วันที่จ่าย',
+      render: (value) => value ? new Date(value).toLocaleDateString('th-TH') : '-'
+    },
+    { 
+      key: 'status', 
+      label: 'สถานะ',
+      render: (value) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          value === 'completed' ? 'bg-green-100 text-green-800' :
+          value === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+          'bg-gray-100 text-gray-800'
+        }`}>
+          {value === 'completed' ? 'เสร็จสิ้น' : value === 'pending' ? 'รอดำเนินการ' : 'ยกเลิก'}
         </span>
       )
     }
