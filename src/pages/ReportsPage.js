@@ -44,17 +44,19 @@ export default function ReportsPage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       // Fetch dashboard stats and reports data
-      const [dashboardRes, contractsRes, periodsRes, performanceRes] = await Promise.all([
+      const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.all([
         axios.get(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { headers }),
         axios.get(`${process.env.REACT_APP_API_URL}/api/contracts`, { headers }),
-        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/periods`, { headers }),
-        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { headers })
+        axios.get(`${process.env.REACT_APP_API_URL}/api/periods`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/departments`, { headers })
       ]);
 
       const dashboardData = dashboardRes.data.data;
       const contractsData = contractsRes.data;
-      const periodsData = periodsRes.data.data || periodsRes.data;
+      const periodsData = periodsRes.data;
       const performanceData = performanceRes.data.data;
+      const departmentsData = departmentsRes.data;
 
       // Apply filters
       let filteredContracts = contractsData;
@@ -66,14 +68,14 @@ export default function ReportsPage() {
       }
 
       // Use API data for stats
-      const departments = dashboardData.departments ? dashboardData.departments.map(d => d.department) : [];
+      const departments = departmentsData.map(d => d.name || d.department);
       
       setContracts(filteredContracts);
       setPeriods(periodsData);
       setStats({
         totalContracts: dashboardData.contracts?.total_contracts || 0,
         activeContracts: dashboardData.contracts?.active_contracts || 0,
-        totalPeriods: dashboardData.periods?.total_periods || 0,
+        totalValue: parseFloat(dashboardData.contracts?.total_value) || 0,
         completedPeriods: dashboardData.periods?.completed_periods || 0,
         pendingPeriods: dashboardData.periods?.pending_periods || 0,
         departments,
@@ -89,113 +91,86 @@ export default function ReportsPage() {
   };
 
   // Chart data preparation
-  const contractTrendData = useMemo(() => {
-    if (!stats.performanceMetrics?.monthlyTrends) return { labels: [], datasets: [] };
-    
-    return {
-      labels: stats.performanceMetrics.monthlyTrends.map(t => t.month_name),
-      datasets: [
-        {
-          label: 'สัญญา',
-          data: stats.performanceMetrics.monthlyTrends.map(t => t.contract_count),
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          tension: 0.3
-        }
-      ]
-    };
-  }, [stats.performanceMetrics]);
+  const prepareChartData = () => {
+    // Monthly contracts chart
+    const monthlyData = contracts.reduce((acc, contract) => {
+      const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
+      acc[month] = (acc[month] || 0) + 1;
+      return acc;
+    }, {});
 
-  const departmentChartData = useMemo(() => {
-    if (!stats.performanceMetrics?.departmentStats) return { labels: [], datasets: [] };
-    
-    return {
-      labels: stats.performanceMetrics.departmentStats.map(d => d.department),
-      datasets: [
-        {
-          data: stats.performanceMetrics.departmentStats.map(d => d.contract_count),
-          backgroundColor: [
-            'rgba(59, 130, 246, 0.8)',
-            'rgba(16, 185, 129, 0.8)',
-            'rgba(251, 146, 60, 0.8)',
-            'rgba(244, 63, 94, 0.8)',
-            'rgba(168, 85, 247, 0.8)'
-          ]
-        }
-      ]
+    const contractTrendData = {
+      labels: Object.keys(monthlyData),
+      datasets: [{
+        label: 'จำนวนสัญญา',
+        data: Object.values(monthlyData),
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
     };
-  }, [stats.performanceMetrics]);
 
-  const periodTrendData = useMemo(() => {
-    if (!stats.performanceMetrics?.monthlyTrends) return { labels: [], datasets: [] };
-    
-    return {
-      labels: stats.performanceMetrics.monthlyTrends.map(t => t.month_name),
-      datasets: [
-        {
-          label: 'งวดงาน',
-          data: stats.performanceMetrics.monthlyTrends.map(t => t.period_count || 0),
-          backgroundColor: 'rgba(59, 130, 246, 0.8)'
-        }
-      ]
+    // Department distribution
+    const deptData = contracts.reduce((acc, contract) => {
+      acc[contract.department] = (acc[contract.department] || 0) + 1;
+      return acc;
+    }, {});
+
+    const departmentChartData = {
+      labels: Object.keys(deptData),
+      datasets: [{
+        data: Object.values(deptData),
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(147, 51, 234, 0.8)'
+        ]
+      }]
     };
-  }, [stats.performanceMetrics]);
 
-  const periodDepartmentData = useMemo(() => {
-    if (!stats.performanceMetrics?.departmentStats) return { labels: [], datasets: [] };
-    
-    return {
-      labels: stats.performanceMetrics.departmentStats.map(d => d.department),
-      datasets: [
-        {
-          data: stats.performanceMetrics.departmentStats.map(d => d.period_count || 0),
-          backgroundColor: [
-            'rgba(59, 130, 246, 0.8)',
-            'rgba(16, 185, 129, 0.8)',
-            'rgba(251, 146, 60, 0.8)',
-            'rgba(244, 63, 94, 0.8)',
-            'rgba(168, 85, 247, 0.8)'
-          ]
-        }
-      ]
+    // Status distribution
+    const statusData = contracts.reduce((acc, contract) => {
+      acc[contract.status] = (acc[contract.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusChartData = {
+      labels: Object.keys(statusData).map(s => s === 'active' ? 'ดำเนินการ' : s === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก'),
+      datasets: [{
+        data: Object.values(statusData),
+        backgroundColor: [
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(239, 68, 68, 0.8)'
+        ]
+      }]
     };
-  }, [stats.performanceMetrics]);
 
-  const periodSummaryData = useMemo(() => {
-    if (!stats.performanceMetrics?.departmentStats) return [];
-    
-    return stats.performanceMetrics.departmentStats.map(d => ({
-      department: d.department,
-      totalPeriods: d.period_count || 0,
-      completed: d.completed_periods || 0,
-      pending: d.pending_periods || 0,
-      completionRate: d.period_count > 0 ? Math.round((d.completed_periods / d.period_count) * 100) : 0
-    }));
-  }, [stats.performanceMetrics]);
+    // Financial trend
+    const financialData = periods.reduce((acc, period) => {
+      const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
+      acc[month] = (acc[month] || 0) + parseFloat(period.amount || 0);
+      return acc;
+    }, {});
 
-  const yearComparisonData = useMemo(() => {
-    if (!stats.performanceMetrics?.yearComparison) return { labels: [], datasets: [] };
-    
-    return {
-      labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
-      datasets: [
-        {
-          label: 'ปีนี้',
-          data: stats.performanceMetrics.yearComparison.current || [],
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          tension: 0.3
-        },
-        {
-          label: 'ปีที่แล้ว',
-          data: stats.performanceMetrics.yearComparison.previous || [],
-          borderColor: 'rgb(156, 163, 175)',
-          backgroundColor: 'rgba(156, 163, 175, 0.1)',
-          tension: 0.3
-        }
-      ]
+    const financialChartData = {
+      labels: Object.keys(financialData),
+      datasets: [{
+        label: 'มูลค่า (บาท)',
+        data: Object.values(financialData),
+        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+        borderColor: 'rgb(16, 185, 129)',
+        borderWidth: 2
+      }]
     };
-  }, [stats.performanceMetrics]);
+
+    return { contractTrendData, departmentChartData, statusChartData, financialChartData };
+  };
+
+  const { contractTrendData, departmentChartData, statusChartData, financialChartData } = prepareChartData();
 
   // Export handlers
   const handleExport = async (format, data) => {
@@ -295,7 +270,7 @@ export default function ReportsPage() {
   const tabs = [
     { id: 'dashboard', label: 'ภาพรวม', icon: '📊' },
     { id: 'contracts', label: 'สัญญา', icon: '📄' },
-    { id: 'periods', label: 'งวดงาน', icon: '📅' },
+    { id: 'periods', label: 'งวดสัญญา', icon: '📅' },
     { id: 'analytics', label: 'วิเคราะห์', icon: '📈' }
   ];
 
@@ -436,14 +411,14 @@ export default function ReportsPage() {
                       loading={loading}
                     />
                     <StatsCard
-                      title="งวดงานทั้งหมด"
-                      value={stats.totalPeriods}
+                      title="มูลค่ารวม"
+                      value={`${stats.totalValue.toLocaleString()} บาท`}
                       color="yellow"
                       icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>}
                       trend="up"
-                      trendValue={10}
+                      trendValue={15}
                       loading={loading}
                     />
                   </div>
@@ -505,59 +480,47 @@ export default function ReportsPage() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <StatsCard
-                      title="งวดทั้งหมด"
-                      value={stats.totalPeriods}
-                      color="blue"
-                      subtitle="จำนวนงวดงานทั้งหมด"
-                      loading={loading}
-                    />
-                    <StatsCard
                       title="งวดที่เสร็จสิ้น"
                       value={stats.completedPeriods}
                       color="green"
-                      subtitle="งวดที่ดำเนินการเสร็จแล้ว"
+                      subtitle="งวดที่ได้รับเงินแล้ว"
                       loading={loading}
                     />
                     <StatsCard
                       title="งวดรอดำเนินการ"
                       value={stats.pendingPeriods}
                       color="yellow"
-                      subtitle="งวดที่รอการดำเนินการ"
+                      subtitle="งวดที่รอการชำระ"
+                      loading={loading}
+                    />
+                    <StatsCard
+                      title="งวดทั้งหมด"
+                      value={periods.length}
+                      color="blue"
+                      subtitle="จำนวนงวดทั้งหมด"
                       loading={loading}
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <ChartCard
-                      title="งวดงานรายเดือน"
-                      subtitle="จำนวนงวดงานในแต่ละเดือน"
-                      type="bar"
-                      data={periodTrendData}
-                      loading={loading}
-                    />
-                    <ChartCard
-                      title="งวดงานตามหน่วยงาน"
-                      subtitle="การกระจายงวดงานตามหน่วยงาน"
-                      type="doughnut"
-                      data={periodDepartmentData}
-                      height={250}
-                      loading={loading}
-                    />
-                  </div>
+                  <ChartCard
+                    title="สถานะงวดสัญญา"
+                    subtitle="การกระจายตามสถานะ"
+                    type="doughnut"
+                    data={{
+                      labels: ['เสร็จสิ้น', 'รอดำเนินการ'],
+                      datasets: [{
+                        data: [stats.completedPeriods, stats.pendingPeriods],
+                        backgroundColor: ['#10b981', '#f59e0b']
+                      }]
+                    }}
+                    loading={loading}
+                  />
 
                   <DataTable
-                    title="สรุปงวดงานตามหน่วยงาน"
-                    subtitle="แสดงจำนวนงวดงานแยกตามหน่วยงาน"
-                    columns={[
-                      { key: 'department', label: 'หน่วยงาน', sortable: true },
-                      { key: 'totalPeriods', label: 'งวดทั้งหมด', sortable: true },
-                      { key: 'completed', label: 'เสร็จสิ้น', sortable: true },
-                      { key: 'pending', label: 'รอดำเนินการ', sortable: true },
-                      { key: 'completionRate', label: 'อัตราสำเร็จ (%)', sortable: true }
-                    ]}
-                    data={periodSummaryData}
-                    searchable={true}
-                    pagination={true}
+                    title="รายการงวดสัญญา"
+                    subtitle={`พบ ${periods.length} รายการ`}
+                    columns={periodColumns}
+                    data={periods}
                   />
                 </motion.div>
               )}
@@ -570,35 +533,63 @@ export default function ReportsPage() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-6"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <h3 className="text-lg font-semibold mb-4">ประสิทธิภาพการดำเนินงาน</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                          <div>
-                            <p className="text-sm text-gray-600">อัตราการเสร็จสิ้น</p>
-                            <p className="text-2xl font-bold text-green-600">
-                              {Math.round(stats.performanceMetrics?.completionRate || 0)}%
-                            </p>
-                          </div>
-                          <div className="w-16 h-16">
-                            <svg className="transform -rotate-90" viewBox="0 0 36 36">
-                              <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
-                              <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.completionRate || 0)}, 100`}/>
-                            </svg>
-                          </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold mb-4">ตัวชี้วัดประสิทธิภาพ</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-gray-600">อัตราความสำเร็จสัญญา</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {Math.round(stats.performanceMetrics?.completionRate || 0)}%
+                          </p>
+                        </div>
+                        <div className="w-16 h-16">
+                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.completionRate || 0)}, 100`}/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="text-sm text-gray-600">อัตราความสำเร็จงวด</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {Math.round(stats.performanceMetrics?.periodCompletionRate || 0)}%
+                          </p>
+                        </div>
+                        <div className="w-16 h-16">
+                          <svg className="transform -rotate-90" viewBox="0 0 36 36">
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e7eb" strokeWidth="3"/>
+                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" strokeWidth="3" strokeDasharray={`${Math.round(stats.performanceMetrics?.periodCompletionRate || 0)}, 100`}/>
+                          </svg>
                         </div>
                       </div>
                     </div>
-                    
-                    <ChartCard
-                      title="เปรียบเทียบงวดงานรายปี"
-                      subtitle="จำนวนงวดงานเปรียบเทียบปีปัจจุบันกับปีที่แล้ว"
-                      type="line"
-                      data={yearComparisonData}
-                      loading={loading}
-                    />
                   </div>
+
+                  <DataTable
+                    title="ประสิทธิภาพตามหน่วยงาน"
+                    columns={[
+                      { key: 'department', label: 'หน่วยงาน' },
+                      { key: 'total_contracts', label: 'จำนวนสัญญา' },
+                      { 
+                        key: 'progress_rate', 
+                        label: 'อัตราความคืบหน้า',
+                        render: (value) => (
+                          <div className="flex items-center">
+                            <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full" 
+                                style={{ width: `${value}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{Math.round(value)}%</span>
+                          </div>
+                        )
+                      }
+                    ]}
+                    data={stats.performanceMetrics?.departmentPerformance || []}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
