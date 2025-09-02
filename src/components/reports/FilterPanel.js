@@ -71,9 +71,7 @@ export default function FilterPanel({
           >
             <option value="all">ทั้งหมด</option>
             {departments.map(dept => (
-              <option key={dept.id || dept.name || dept} value={dept.name || dept}>
-                {dept.name || dept}
-              </option>
+              <option key={dept} value={dept}>{dept}</option>
             ))}
           </select>
         </div>
