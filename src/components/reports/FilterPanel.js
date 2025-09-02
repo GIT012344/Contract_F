@@ -12,7 +12,7 @@ export default function FilterPanel({
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-xl shadow-lg p-6 relative z-10"
+      className="bg-white rounded-xl shadow-lg p-6"
     >
       <h3 className="text-lg font-semibold text-gray-900 mb-4">ตัวกรอง</h3>
       
@@ -25,7 +25,7 @@ export default function FilterPanel({
           <select
             value={filters.dateRange}
             onChange={(e) => onFilterChange({ ...filters, dateRange: e.target.value })}
-            className="relative z-20 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">ทั้งหมด</option>
             <option value="today">วันนี้</option>
@@ -67,7 +67,7 @@ export default function FilterPanel({
           <select
             value={filters.department}
             onChange={(e) => onFilterChange({ ...filters, department: e.target.value })}
-            className="relative z-20 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">ทั้งหมด</option>
             {departments.map(dept => (
@@ -109,7 +109,7 @@ export default function FilterPanel({
           <select
             value={filters.reportType}
             onChange={(e) => onFilterChange({ ...filters, reportType: e.target.value })}
-            className="relative z-20 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="summary">สรุปภาพรวม</option>
             <option value="contract">รายงานสัญญา</option>

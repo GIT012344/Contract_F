@@ -165,29 +165,29 @@ export default function ReportsPage() {
       }]
     };
 
-    // Financial trend
-    const financialData = periods.length > 0 ? periods.reduce((acc, period) => {
+    // Period trend (count, not financial)
+    const periodData = periods.length > 0 ? periods.reduce((acc, period) => {
       if (!period.dueDate) return acc;
       const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
-      acc[month] = (acc[month] || 0) + parseFloat(period.amount || 0);
+      acc[month] = (acc[month] || 0) + 1; // นับจำนวนงวด ไม่ใช่มูลค่าเงิน
       return acc;
     }, {}) : { 'ม.ค.': 0, 'ก.พ.': 0, 'มี.ค.': 0 };
 
-    const financialChartData = {
-      labels: Object.keys(financialData).length > 0 ? Object.keys(financialData) : ['ม.ค.', 'ก.พ.', 'มี.ค.'],
+    const periodTrendData = {
+      labels: Object.keys(periodData).length > 0 ? Object.keys(periodData) : ['ม.ค.', 'ก.พ.', 'มี.ค.'],
       datasets: [{
-        label: 'มูลค่า (บาท)',
-        data: Object.values(financialData).length > 0 ? Object.values(financialData) : [0, 0, 0],
+        label: 'จำนวนงวด',
+        data: Object.values(periodData).length > 0 ? Object.values(periodData) : [0, 0, 0],
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
         borderColor: 'rgb(16, 185, 129)',
         borderWidth: 2
       }]
     };
 
-    return { contractTrendData, departmentChartData, statusChartData, financialChartData };
+    return { contractTrendData, departmentChartData, statusChartData, periodTrendData };
   };
 
-  const { contractTrendData, departmentChartData, statusChartData, financialChartData } = prepareChartData();
+  const { contractTrendData, departmentChartData, statusChartData, periodTrendData } = prepareChartData();
 
   // Export handlers
   const handleExport = async (format, data) => {
@@ -348,8 +348,8 @@ export default function ReportsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow-sm rounded-lg mb-6">
+          <div className="px-4 sm:px-6 lg:px-8">
             <nav className="flex space-x-8" aria-label="Tabs">
               {tabs.map((tab) => (
                 <button
@@ -370,49 +370,6 @@ export default function ReportsPage() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Filter Panel */}
-            <div className="lg:col-span-1">
-              <FilterPanel
-                filters={filters}
-                onFilterChange={setFilters}
-                departments={stats.departments}
-                statuses={[
-                  { value: 'active', label: 'ดำเนินการ' },
-                  { value: 'completed', label: 'เสร็จสิ้น' },
-                  { value: 'cancelled', label: 'ยกเลิก' }
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Filter Panel */}
           <div className="lg:col-span-1">
@@ -464,11 +421,11 @@ export default function ReportsPage() {
                       loading={loading}
                     />
                     <StatsCard
-                      title="มูลค่ารวม"
-                      value={`${stats.totalValue.toLocaleString()} บาท`}
+                      title="งวดทั้งหมด"
+                      value={periods.length}
                       color="yellow"
                       icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>}
                       trend="up"
                       trendValue={15}

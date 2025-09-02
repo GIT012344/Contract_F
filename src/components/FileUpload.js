@@ -1,12 +1,54 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-export default function FileUpload({ contractId, onFileUploaded }) {
-  const [uploading, setUploading] = useState(false);
+const FileUpload = ({ contractId, onFileUploaded }) => {
   const [files, setFiles] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const acceptedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png'
+  ];
+
+  // โหลดไฟล์ที่อัปโหลดแล้ว
+  useEffect(() => {
+    fetchUploadedFiles();
+  }, [contractId]);
+
+  const fetchUploadedFiles = async () => {
+    if (!contractId) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL}/api/contracts/${contractId}/files`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        setUploadedFiles(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -41,6 +83,10 @@ export default function FileUpload({ contractId, onFileUploaded }) {
     
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
+      if (!acceptedTypes.includes(file.type)) {
+        toast.error('ไม่รองรับไฟล์ประเภทนี้');
+        return;
+      }
       formData.append('files', file);
       newFiles.push({
         name: file.name,
@@ -74,9 +120,13 @@ export default function FileUpload({ contractId, onFileUploaded }) {
           : f
       ));
       
-      toast.success('อัปโหลดไฟล์สำเร็จ');
-      if (onFileUploaded) {
-        onFileUploaded(response.data);
+      if (response.data.success) {
+        toast.success('อัปโหลดไฟล์สำเร็จ');
+        setFiles([]);
+        fetchUploadedFiles(); // รีโหลดรายการไฟล์
+        if (onFileUploaded) {
+          onFileUploaded(response.data.data);
+        }
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -101,7 +151,51 @@ export default function FileUpload({ contractId, onFileUploaded }) {
   };
 
   const removeFile = (index) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles(files.filter((_, i) => i !== index));
+  };
+
+  const handleDownload = (fileId, fileName) => {
+    const token = localStorage.getItem('token');
+    window.open(
+      `${process.env.REACT_APP_API_URL}/api/files/${fileId}/download?token=${token}`,
+      '_blank'
+    );
+  };
+
+  const handleView = (fileId, fileType) => {
+    const token = localStorage.getItem('token');
+    if (fileType.includes('pdf') || fileType.includes('image')) {
+      window.open(
+        `${process.env.REACT_APP_API_URL}/api/files/${fileId}/view?token=${token}`,
+        '_blank'
+      );
+    } else {
+      handleDownload(fileId, '');
+    }
+  };
+
+  const handleDelete = async (fileId) => {
+    if (!window.confirm('คุณต้องการลบไฟล์นี้หรือไม่?')) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.delete(
+        `${process.env.REACT_APP_API_URL}/api/files/${fileId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        toast.success('ลบไฟล์สำเร็จ');
+        fetchUploadedFiles();
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('เกิดข้อผิดพลาดในการลบไฟล์');
+    }
   };
 
   return (
@@ -212,4 +306,6 @@ export default function FileUpload({ contractId, onFileUploaded }) {
       )}
     </div>
   );
-}
+};
+
+export default FileUpload;
