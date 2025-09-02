@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast';
 import StatsCard from '../components/reports/StatsCard';
 import ChartCard from '../components/reports/ChartCard';
+import DataTable from '../components/reports/DataTable';
 import FilterPanel from '../components/reports/FilterPanel';
 import ExportMenu from '../components/reports/ExportMenu';
-import DataTable from '../components/reports/DataTable';
+import { exportContractsToCSV, exportPeriodsToCSV, downloadCSV } from '../utils/exportUtils';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export default function ReportsPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('overview');
   const [contracts, setContracts] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [stats, setStats] = useState({
@@ -26,8 +28,8 @@ export default function ReportsPage() {
     departments: []
   });
   const [filters, setFilters] = useState({
-    dateRange: 'all',
     department: 'all',
+    dateRange: { start: null, end: null },
     statuses: []
   });
   const [loading, setLoading] = useState(true);
@@ -57,17 +59,19 @@ export default function ReportsPage() {
       // Fetch all data with error handling
       const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.all([
         fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { data: { data: {} } }),
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/contracts`, { data: [] }),
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/contracts`, { data: { contracts: [] } }),
         fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/periods`, { data: [] }),
         fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { data: { data: {} } }),
         fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/departments`, { data: [] })
       ]);
 
       const dashboardData = dashboardRes?.data?.data || {};
-      const contractsData = contractsRes?.data || [];
+      const contractsData = contractsRes?.data?.contracts || contractsRes?.data || [];
       const periodsData = periodsRes?.data || [];
       const performanceData = performanceRes?.data?.data || {};
       const departmentsData = departmentsRes?.data || [];
+      
+      console.log('Fetched contracts:', contractsData);
 
       // Apply filters
       let filteredContracts = contractsData;
@@ -86,8 +90,8 @@ export default function ReportsPage() {
       setContracts(filteredContracts || []);
       setPeriods(periodsData || []);
       setStats({
-        totalContracts: dashboardData?.contracts?.total_contracts || 0,
-        activeContracts: dashboardData?.contracts?.active_contracts || 0,
+        totalContracts: dashboardData?.contracts?.total_contracts || filteredContracts.length || 0,
+        activeContracts: dashboardData?.contracts?.active_contracts || filteredContracts.filter(c => c.status === 'ACTIVE').length || 0,
         totalValue: parseFloat(dashboardData?.contracts?.total_value) || 0,
         completedPeriods: dashboardData?.periods?.completed_periods || 0,
         pendingPeriods: dashboardData?.periods?.pending_periods || 0,
@@ -228,85 +232,78 @@ export default function ReportsPage() {
   }, [contracts, periods]);
 
   // Export handlers
-  const handleExport = async (format, data) => {
-    switch (format) {
-      case 'excel':
-        exportToExcel(data);
-        break;
-      case 'pdf':
-        exportToPDF(data);
-        break;
-      case 'csv':
-        exportToCSV(data);
-        break;
-      case 'print':
+  const handleExportContracts = (format) => {
+    try {
+      const dataToExport = contracts || [];
+      
+      if (format === 'csv') {
+        const csv = exportContractsToCSV(dataToExport);
+        downloadCSV(csv, `contracts_${new Date().toISOString().split('T')[0]}.csv`);
+      } else if (format === 'excel') {
+        const ws = XLSX.utils.json_to_sheet(dataToExport.map(c => ({
+          'เลขที่สัญญา': c.contract_no,
+          'ชื่อผู้ติดต่อ': c.contact_name,
+          'หน่วยงาน': c.department,
+          'สถานะ': c.status,
+          'จำนวนงวด': c.period_count,
+          'วันที่สร้าง': new Date(c.created_at).toLocaleDateString('th-TH')
+        })));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'สัญญา');
+        XLSX.writeFile(wb, `contracts_${new Date().toISOString().split('T')[0]}.xlsx`);
+      } else if (format === 'print') {
         window.print();
-        break;
-      default:
-        break;
+      }
+      
+      toast.success(`ส่งออก ${format.toUpperCase()} สำเร็จ`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('เกิดข้อผิดพลาดในการส่งออกข้อมูล');
     }
   };
 
-  const exportToExcel = (data) => {
-    const ws = XLSX.utils.json_to_sheet(contracts);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
-    XLSX.writeFile(wb, `report_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const exportToPDF = (data) => {
-    const doc = new jsPDF();
-    doc.text('รายงานสัญญา', 14, 15);
-    doc.text(`วันที่: ${new Date().toLocaleDateString('th-TH')}`, 14, 25);
-    
-    const tableColumns = ['เลขที่สัญญา', 'ชื่อสัญญา', 'หน่วยงาน', 'มูลค่า', 'สถานะ'];
-    const tableRows = contracts.map(c => [
-      c.contractNumber,
-      c.contractName,
-      c.department,
-      `${parseFloat(c.totalAmount || 0).toLocaleString()} บาท`,
-      c.status
-    ]);
-    
-    doc.autoTable({
-      head: [tableColumns],
-      body: tableRows,
-      startY: 35,
-      styles: { font: 'helvetica' }
-    });
-    
-    doc.save(`report_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
-
-  const exportToCSV = (data) => {
-    const csvContent = [
-      ['เลขที่สัญญา', 'ชื่อสัญญา', 'หน่วยงาน', 'มูลค่า', 'สถานะ'],
-      ...contracts.map(c => [
-        c.contractNumber,
-        c.contractName,
-        c.department,
-        c.totalAmount,
-        c.status
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+  const handleExportPeriods = (format) => {
+    try {
+      const dataToExport = periods || [];
+      
+      if (format === 'csv') {
+        const csv = exportPeriodsToCSV(dataToExport);
+        downloadCSV(csv, `periods_${new Date().toISOString().split('T')[0]}.csv`);
+      } else if (format === 'excel') {
+        const ws = XLSX.utils.json_to_sheet(dataToExport.map(p => ({
+          'เลขที่สัญญา': p.contract_no,
+          'งวดที่': p.period_no,
+          'วันที่กำหนดส่ง': p.due_date ? new Date(p.due_date).toLocaleDateString('th-TH') : '',
+          'สถานะ': p.status,
+          'แจ้งเตือนล่วงหน้า': p.alert_days + ' วัน'
+        })));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'งวดงาน');
+        XLSX.writeFile(wb, `periods_${new Date().toISOString().split('T')[0]}.xlsx`);
+      } else if (format === 'print') {
+        window.print();
+      }
+      
+      toast.success(`ส่งออก ${format.toUpperCase()} สำเร็จ`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('เกิดข้อผิดพลาดในการส่งออกข้อมูล');
+    }
   };
 
   // Table columns configuration
   const contractColumns = [
-    { key: 'contractNumber', label: 'เลขที่สัญญา' },
-    { key: 'contractName', label: 'ชื่อสัญญา' },
+    { key: 'contract_no', label: 'เลขที่สัญญา' },
+    { key: 'contact_name', label: 'ชื่อผู้ติดต่อ' },
     { key: 'department', label: 'หน่วยงาน' },
-    { key: 'contractor', label: 'คู่สัญญา' },
     { 
       key: 'period_count', 
       label: 'จำนวนงวด',
-      render: (value) => value || '0'
+      render: (value) => (
+        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+          {value || 0} งวด
+        </span>
+      )
     },
     { 
       key: 'startDate', 
@@ -359,7 +356,7 @@ export default function ReportsPage() {
   ];
 
   const tabs = [
-    { id: 'dashboard', label: 'ภาพรวม', icon: '📊' },
+    { id: 'overview', label: 'ภาพรวม', icon: '📊' },
     { id: 'contracts', label: 'สัญญา', icon: '📄' },
     { id: 'periods', label: 'งวดสัญญา', icon: '📅' }
   ];
@@ -369,8 +366,21 @@ export default function ReportsPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">ระบบรายงานและวิเคราะห์</h1>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              รายงานและสถิติ
+            </h1>
+            <ExportMenu
+              onExport={(format) => {
+                if (activeTab === 'contracts' || activeTab === 'overview') {
+                  handleExportContracts(format);
+                } else if (activeTab === 'periods') {
+                  handleExportPeriods(format);
+                }
+              }}
+              data={activeTab === 'contracts' ? contracts : periods}
+              reportTitle={activeTab === 'contracts' ? 'รายงานสัญญา' : 'รายงานงวดงาน'}
+            />
             <button
               onClick={() => navigate('/dashboard')}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
