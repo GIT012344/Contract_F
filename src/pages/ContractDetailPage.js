@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import Layout from '../components/Layout';
 import AddContract from '../components/AddContract';
+import FileUpload from '../components/FileUpload';
 import { printContract } from '../utils/printUtils';
 import toast from 'react-hot-toast';
 
@@ -354,6 +355,18 @@ export default function ContractDetailPage() {
             </div>
           </div>
         </div>
+        
+        {/* File Upload Section */}
+        <div className="mb-8">
+          <FileUpload 
+            contractId={id} 
+            onFileUploaded={(files) => {
+              console.log('Files uploaded:', files);
+              // You can add logic here to refresh file list if needed
+            }}
+          />
+        </div>
+        
         {/* งวดงาน */}
         <div className="mb-8">
           <h3 className="font-bold mb-2 text-blue-700">งวดงาน</h3>

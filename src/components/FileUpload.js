@@ -1,123 +1,91 @@
 import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-hot-toast';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-export default function FileUpload({ 
-  onUploadSuccess, 
-  contractId = null,
-  multiple = false,
-  acceptedFormats = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg',
-  maxFileSize = 10485760 // 10MB default
-}) {
-  const [files, setFiles] = useState([]);
+export default function FileUpload({ contractId, onFileUploaded }) {
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({});
+  const [files, setFiles] = useState([]);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleFileSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    
-    // Validate file size
-    const oversizedFiles = selectedFiles.filter(file => file.size > maxFileSize);
-    if (oversizedFiles.length > 0) {
-      toast.error(`ไฟล์ ${oversizedFiles.map(f => f.name).join(', ')} มีขนาดเกินกำหนด (${maxFileSize / 1024 / 1024}MB)`);
-      return;
-    }
-
-    // Validate file format
-    const acceptedExtensions = acceptedFormats.split(',').map(ext => ext.trim().toLowerCase());
-    const invalidFiles = selectedFiles.filter(file => {
-      const extension = '.' + file.name.split('.').pop().toLowerCase();
-      return !acceptedExtensions.includes(extension);
-    });
-    
-    if (invalidFiles.length > 0) {
-      toast.error(`ไฟล์ ${invalidFiles.map(f => f.name).join(', ')} ไม่ใช่รูปแบบที่รองรับ`);
-      return;
-    }
-
-    if (multiple) {
-      setFiles(prev => [...prev, ...selectedFiles]);
-    } else {
-      setFiles(selectedFiles);
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
     }
   };
 
-  const removeFile = (index) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-    const newProgress = { ...uploadProgress };
-    delete newProgress[index];
-    setUploadProgress(newProgress);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files);
+    }
   };
 
-  const uploadFile = async (file, index) => {
+  const handleChange = (e) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const handleFiles = async (fileList) => {
     const formData = new FormData();
-    formData.append('file', file);
-    if (contractId) {
-      formData.append('contractId', contractId);
+    const newFiles = [];
+    
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      formData.append('files', file);
+      newFiles.push({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: 'uploading'
+      });
     }
-
+    
+    setFiles(prev => [...prev, ...newFiles]);
+    formData.append('contractId', contractId);
+    
+    setUploading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/upload`,
+        `${process.env.REACT_APP_API_URL}/api/contracts/${contractId}/files`,
         formData,
         {
           headers: {
             'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(prev => ({
-              ...prev,
-              [index]: percentCompleted
-            }));
           }
         }
       );
-
-      return response.data;
+      
+      // Update file status to uploaded
+      setFiles(prev => prev.map(f => 
+        newFiles.some(nf => nf.name === f.name) 
+          ? { ...f, status: 'uploaded' }
+          : f
+      ));
+      
+      toast.success('อัปโหลดไฟล์สำเร็จ');
+      if (onFileUploaded) {
+        onFileUploaded(response.data);
+      }
     } catch (error) {
       console.error('Upload error:', error);
-      throw error;
-    }
-  };
-
-  const handleUpload = async () => {
-    if (files.length === 0) {
-      toast.error('กรุณาเลือกไฟล์ที่ต้องการอัปโหลด');
-      return;
-    }
-
-    setUploading(true);
-    const uploadPromises = files.map((file, index) => uploadFile(file, index));
-
-    try {
-      const results = await Promise.allSettled(uploadPromises);
-      
-      const successful = results.filter(r => r.status === 'fulfilled');
-      const failed = results.filter(r => r.status === 'rejected');
-
-      if (successful.length > 0) {
-        toast.success(`อัปโหลดสำเร็จ ${successful.length} ไฟล์`);
-        if (onUploadSuccess) {
-          onUploadSuccess(successful.map(r => r.value));
-        }
-      }
-
-      if (failed.length > 0) {
-        toast.error(`อัปโหลดล้มเหลว ${failed.length} ไฟล์`);
-      }
-
-      // Clear files after upload
-      setFiles([]);
-      setUploadProgress({});
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error) {
+      // Update file status to error
+      setFiles(prev => prev.map(f => 
+        newFiles.some(nf => nf.name === f.name) 
+          ? { ...f, status: 'error' }
+          : f
+      ));
       toast.error('เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
     } finally {
       setUploading(false);
@@ -132,139 +100,116 @@ export default function FileUpload({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   return (
-    <div className="w-full">
-      {/* Drop Zone */}
-      <div
-        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50 hover:bg-gray-100"
-        onClick={() => fileInputRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const droppedFiles = Array.from(e.dataTransfer.files);
-          handleFileSelect({ target: { files: droppedFiles } });
-        }}
-      >
-        <svg
-          className="mx-auto h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
+    <div className="bg-white p-6 rounded-xl shadow-lg">
+      <h3 className="font-bold mb-4 text-blue-700 flex items-center gap-2">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p className="mt-2 text-sm text-gray-600">
-          คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          รองรับ: {acceptedFormats} (ขนาดไม่เกิน {maxFileSize / 1024 / 1024}MB)
-        </p>
+        เอกสารแนบ
+      </h3>
+
+      {/* Drag and Drop Area */}
+      <div
+        className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
         <input
           ref={fileInputRef}
           type="file"
-          multiple={multiple}
-          accept={acceptedFormats}
-          onChange={handleFileSelect}
+          multiple
+          onChange={handleChange}
           className="hidden"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
         />
+        
+        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        
+        <p className="mt-2 text-sm text-gray-600">
+          ลากไฟล์มาวางที่นี่ หรือ{' '}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="font-medium text-blue-600 hover:text-blue-500"
+            disabled={uploading}
+          >
+            เลือกไฟล์
+          </button>
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          รองรับไฟล์: PDF, Word, Excel, รูปภาพ (ขนาดไม่เกิน 10MB)
+        </p>
       </div>
 
       {/* File List */}
-      <AnimatePresence>
-        {files.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="mt-4 space-y-2"
-          >
-            {files.map((file, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    {file.type.startsWith('image/') ? (
-                      <svg className="h-8 w-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg className="h-8 w-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-5L9 2H4z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                    <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  {uploadProgress[index] !== undefined && (
-                    <div className="w-24">
-                      <div className="bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${uploadProgress[index]}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1 text-center">
-                        {uploadProgress[index]}%
-                      </p>
-                    </div>
-                  )}
-                  
-                  {!uploading && (
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-
-            {/* Upload Button */}
-            <div className="flex justify-end pt-4">
-              <button
-                onClick={handleUpload}
-                disabled={uploading || files.length === 0}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  uploading || files.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {uploading ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      {files.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <h4 className="text-sm font-medium text-gray-700">ไฟล์ที่เลือก:</h4>
+          {files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                {/* File Icon */}
+                <div className="p-2 bg-white rounded">
+                  {file.type?.includes('pdf') ? (
+                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-5L9 2H4z" />
                     </svg>
-                    กำลังอัปโหลด...
-                  </span>
-                ) : (
-                  `อัปโหลด ${files.length} ไฟล์`
+                  ) : file.type?.includes('image') ? (
+                    <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                  <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {file.status === 'uploading' && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
                 )}
-              </button>
+                {file.status === 'uploaded' && (
+                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+                  </svg>
+                )}
+                {file.status === 'error' && (
+                  <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" />
+                  </svg>
+                )}
+                {!file.status && (
+                  <button
+                    onClick={() => removeFile(index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
