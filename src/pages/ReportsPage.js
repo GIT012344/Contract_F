@@ -54,20 +54,47 @@ export default function ReportsPage() {
         }
       };
 
-      // Fetch all data with error handling
+      // Fetch all data with error handling - use correct fallback structure
       const [dashboardRes, contractsRes, periodsRes, performanceRes, departmentsRes] = await Promise.all([
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { data: { data: {} } }),
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/contracts`, { data: [] }),
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/periods`, { data: [] }),
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { data: { data: {} } }),
-        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/departments`, { data: [] })
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/dashboard`, { 
+          data: { 
+            success: true,
+            data: {
+              contracts: { total_contracts: 0, active_contracts: 0, expired_contracts: 0, created_contracts: 0 },
+              periods: { total_periods: 0, completed_periods: 0, pending_periods: 0, overdue_periods: 0 },
+              departments: [],
+              monthlyTrend: []
+            }
+          } 
+        }),
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/contracts`, { data: { success: true, data: [] } }),
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/periods`, { data: { success: true, data: [] } }),
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/reports/performance`, { 
+          data: { 
+            success: true,
+            data: {
+              departmentPerformance: [],
+              completionRate: 0,
+              periodCompletionRate: 0,
+              onTimePaymentRate: 0
+            }
+          } 
+        }),
+        fetchWithFallback(`${process.env.REACT_APP_API_URL}/api/departments`, { data: { success: true, data: [] } })
       ]);
 
+      // Extract data properly from API responses
       const dashboardData = dashboardRes?.data?.data || {};
-      const contractsData = contractsRes?.data || [];
-      const periodsData = periodsRes?.data || [];
+      const contractsData = contractsRes?.data?.data || contractsRes?.data || [];
+      const periodsData = periodsRes?.data?.data || periodsRes?.data || [];
       const performanceData = performanceRes?.data?.data || {};
-      const departmentsData = departmentsRes?.data || [];
+      const departmentsData = departmentsRes?.data?.data || departmentsRes?.data || [];
+      
+      // Debug logging
+      console.log('Dashboard Data:', dashboardData);
+      console.log('Contracts Data:', contractsData);
+      console.log('Performance Data:', performanceData);
+      console.log('Departments Data:', departmentsData);
 
       // Apply filters
       let filteredContracts = contractsData;
@@ -105,18 +132,63 @@ export default function ReportsPage() {
 
   // Chart data preparation
   const prepareChartData = () => {
+    // Check if contracts array exists and has data
+    if (!contracts || contracts.length === 0) {
+      console.log('No contracts data available for charts');
+      // Return default empty chart data
+      return {
+        contractTrendData: {
+          labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.'],
+          datasets: [{
+            label: 'จำนวนสัญญา',
+            data: [0, 0, 0, 0, 0, 0],
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        departmentChartData: {
+          labels: ['ไม่มีข้อมูล'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['rgba(200, 200, 200, 0.5)']
+          }]
+        },
+        statusChartData: {
+          labels: ['ไม่มีข้อมูล'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['rgba(200, 200, 200, 0.5)']
+          }]
+        },
+        financialChartData: {
+          labels: ['ไม่มีข้อมูล'],
+          datasets: [{
+            label: 'มูลค่า (บาท)',
+            data: [0],
+            backgroundColor: 'rgba(200, 200, 200, 0.5)',
+            borderColor: 'rgb(200, 200, 200)',
+            borderWidth: 2
+          }]
+        }
+      };
+    }
+
     // Monthly contracts chart
     const monthlyData = contracts.reduce((acc, contract) => {
-      const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
-      acc[month] = (acc[month] || 0) + 1;
+      if (contract.startDate) {
+        const month = new Date(contract.startDate).toLocaleDateString('th-TH', { month: 'short' });
+        acc[month] = (acc[month] || 0) + 1;
+      }
       return acc;
     }, {});
 
     const contractTrendData = {
-      labels: Object.keys(monthlyData),
+      labels: Object.keys(monthlyData).length > 0 ? Object.keys(monthlyData) : ['ไม่มีข้อมูล'],
       datasets: [{
         label: 'จำนวนสัญญา',
-        data: Object.values(monthlyData),
+        data: Object.values(monthlyData).length > 0 ? Object.values(monthlyData) : [0],
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
@@ -126,14 +198,16 @@ export default function ReportsPage() {
 
     // Department distribution
     const deptData = contracts.reduce((acc, contract) => {
-      acc[contract.department] = (acc[contract.department] || 0) + 1;
+      if (contract.department) {
+        acc[contract.department] = (acc[contract.department] || 0) + 1;
+      }
       return acc;
     }, {});
 
     const departmentChartData = {
-      labels: Object.keys(deptData),
+      labels: Object.keys(deptData).length > 0 ? Object.keys(deptData) : ['ไม่มีข้อมูล'],
       datasets: [{
-        data: Object.values(deptData),
+        data: Object.values(deptData).length > 0 ? Object.values(deptData) : [1],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
@@ -146,14 +220,18 @@ export default function ReportsPage() {
 
     // Status distribution
     const statusData = contracts.reduce((acc, contract) => {
-      acc[contract.status] = (acc[contract.status] || 0) + 1;
+      if (contract.status) {
+        acc[contract.status] = (acc[contract.status] || 0) + 1;
+      }
       return acc;
     }, {});
 
     const statusChartData = {
-      labels: Object.keys(statusData).map(s => s === 'active' ? 'ดำเนินการ' : s === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก'),
+      labels: Object.keys(statusData).length > 0 
+        ? Object.keys(statusData).map(s => s === 'active' ? 'ดำเนินการ' : s === 'completed' ? 'เสร็จสิ้น' : 'ยกเลิก')
+        : ['ไม่มีข้อมูล'],
       datasets: [{
-        data: Object.values(statusData),
+        data: Object.values(statusData).length > 0 ? Object.values(statusData) : [1],
         backgroundColor: [
           'rgba(16, 185, 129, 0.8)',
           'rgba(59, 130, 246, 0.8)',
@@ -162,18 +240,20 @@ export default function ReportsPage() {
       }]
     };
 
-    // Financial trend
-    const financialData = periods.reduce((acc, period) => {
-      const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
-      acc[month] = (acc[month] || 0) + parseFloat(period.amount || 0);
+    // Financial trend - safe handling of periods
+    const financialData = (periods || []).reduce((acc, period) => {
+      if (period && period.dueDate) {
+        const month = new Date(period.dueDate).toLocaleDateString('th-TH', { month: 'short' });
+        acc[month] = (acc[month] || 0) + parseFloat(period.amount || 0);
+      }
       return acc;
     }, {});
 
     const financialChartData = {
-      labels: Object.keys(financialData),
+      labels: Object.keys(financialData).length > 0 ? Object.keys(financialData) : ['ไม่มีข้อมูล'],
       datasets: [{
         label: 'มูลค่า (บาท)',
-        data: Object.values(financialData),
+        data: Object.values(financialData).length > 0 ? Object.values(financialData) : [0],
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
         borderColor: 'rgb(16, 185, 129)',
         borderWidth: 2
@@ -439,9 +519,9 @@ export default function ReportsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <StatsCard
                       title="สัญญาทั้งหมด"
-                      value={stats.totalContracts}
+                      value={stats.totalContracts || 0}
                       color="blue"
-                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      icon={({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>}
                       trend="up"
@@ -450,9 +530,9 @@ export default function ReportsPage() {
                     />
                     <StatsCard
                       title="สัญญาที่ดำเนินการ"
-                      value={stats.activeContracts}
+                      value={stats.activeContracts || 0}
                       color="green"
-                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      icon={({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>}
                       trend="up"
@@ -461,9 +541,9 @@ export default function ReportsPage() {
                     />
                     <StatsCard
                       title="มูลค่ารวม"
-                      value={`${stats.totalValue.toLocaleString()} บาท`}
+                      value={`${(stats.totalValue || 0).toLocaleString()} บาท`}
                       color="yellow"
-                      icon={() => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      icon={({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>}
                       trend="up"
